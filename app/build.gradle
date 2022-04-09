@@ -1,0 +1,22 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-kapt'
+
+android {
+
+  flavorDimensions 'Beta'
+
+  productFlavors {
+    Beta {
+      dimension 'Beta'
+    }
+  }
+
+}
+
+dependencies {
+  implementation project(path: ':annotation')
+  implementation project(path: ':runtime')
+  annotationProcessor project(':compiler')
+  kapt project(':compiler')
+}

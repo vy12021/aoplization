@@ -1,0 +1,77 @@
+// https://docs.gradle.org/current/userguide/publishing_maven.html
+
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+afterEvaluate {
+
+  // 定义原码jar包任务
+  if (isAndroid()) {
+    task sourceJar(type: Jar) {
+      from android.sourceSets.main.java.srcDirs
+      archiveClassifier = "sources"
+    }
+  } else {
+    task sourceJar(type: Jar, dependsOn:classes) {
+      from sourceSets.main.allSource
+      archiveClassifier = "sources"
+    }
+  }
+
+  artifacts {
+    archives sourceJar
+  }
+
+  java {
+    if (!isAndroid()) {
+      withSourcesJar()
+    }
+  }
+
+  publishing {
+    publications {
+      /*debug(MavenPublication) {
+        if (isAndroid()) {
+          from components.debug
+        } else {
+          from components.java
+        }
+        groupId = GROUP
+        artifactId = POM_ARTIFACT_ID
+        version = VERSION_NAME
+      }*/
+      release(MavenPublication) {
+        if (isAndroid()) {
+          from components.release
+          artifact(sourceJar)
+        } else {
+          from components.java
+        }
+        groupId = GROUP
+        artifactId = POM_ARTIFACT_ID
+        version = VERSION_NAME
+      }
+    }
+    repositories {
+      maven {
+        url = mavenRepository
+        credentials {
+          username mavenUsername
+          password mavenPassword
+        }
+        authentication {
+          basic(BasicAuthentication)
+        }
+      }
+    }
+  }
+
+  /*signing {
+    sign publishing.publications.release
+  }*/
+
+}
+
+def isAndroid() {
+  plugins.hasPlugin('com.android.application') || plugins.hasPlugin('com.android.library')
+}

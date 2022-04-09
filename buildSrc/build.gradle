@@ -1,0 +1,47 @@
+buildscript {
+  ext {
+    android_version = '7.1.2'
+    kotlin_version = '1.6.20'
+  }
+  repositories {
+    google()
+    mavenCentral()
+    gradlePluginPortal()
+    maven { url 'https://maven.aliyun.com/nexus/content/groups/public/' }
+    maven { url 'https://maven.aliyun.com/nexus/content/repositories/jcenter' }
+    maven { url 'https://maven.aliyun.com/repository/google' }
+  }
+  dependencies {
+    classpath "com.android.tools.build:gradle:${android_version}"
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlin_version}"
+  }
+}
+
+apply plugin: 'java-gradle-plugin'
+apply plugin: 'kotlin'
+
+repositories {
+  google()
+  mavenCentral()
+  gradlePluginPortal()
+  maven { url 'https://maven.aliyun.com/nexus/content/groups/public/' }
+  maven { url 'https://maven.aliyun.com/nexus/content/repositories/jcenter' }
+  maven { url 'https://maven.aliyun.com/repository/google' }
+}
+
+
+gradlePlugin {
+  plugins {
+    componentization {
+      id = 'aoplization'
+      implementationClass = 'com.forceai.android.plugin.aoplizatioin.AoplizationPlugin'
+    }
+  }
+}
+
+dependencies {
+  implementation "com.android.tools.build:gradle:$android_version"
+  implementation "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+  implementation "org.javassist:javassist:3.27.0-GA"
+}

@@ -1,0 +1,8 @@
+include ':app'
+include ':library'
+include ':annotation'
+include ':compiler'
+include ':runtime'
+include ':plugin'
+
+rootProject.name = 'aoplization'

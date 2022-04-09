@@ -1,0 +1,23 @@
+apply plugin: 'java-gradle-plugin'
+apply plugin: 'kotlin'
+
+java {
+  sourceCompatibility = rootProject.ext.sourceCompatibilityVersion
+  targetCompatibility = rootProject.ext.targetCompatibilityVersion
+}
+
+dependencies {
+  compileOnly "com.android.tools.build:gradle:$android_version"
+  compileOnly "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+  implementation "org.javassist:javassist:3.27.0-GA"
+}
+
+afterEvaluate {
+  def artifactIds = new StringBuilder()
+  artifactIds.append("implementation-group=${rootProject.property('GROUP')}\n")
+  artifactIds.append("implementation-version=$VERSION_NAME")
+  file('src/main/resources/artifact.properties').write(artifactIds.toString())
+}
+
+apply from: "${rootProject.file('mvn-push.gradle')}"
