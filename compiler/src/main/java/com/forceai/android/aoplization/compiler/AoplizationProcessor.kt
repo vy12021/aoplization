@@ -31,7 +31,6 @@ class AoplizationProcessor : AbstractProcessor() {
   private var trees: Trees? = null
   private lateinit var logger: Messager
   private lateinit var options: Map<String, String>
-  private val registers: MutableSet<String> by lazy { HashSet() }
   private var debugEnabled: Boolean = false
 
   @Synchronized
@@ -53,27 +52,23 @@ class AoplizationProcessor : AbstractProcessor() {
     ProxyEntry::class.java.canonicalName
   )
 
-  override fun process(annotations: Set<TypeElement?>, env: RoundEnvironment): Boolean {
+  override fun process(annotations: Set<TypeElement>, env: RoundEnvironment): Boolean {
     for (element in env.getElementsAnnotatedWith(ProxyEntry::class.java)) {
       if (!SuperficialValidation.validateElement(element)) {
         logger.printMessage(
-          Diagnostic.Kind.WARNING, "不合法元素：${element.simpleName}"
+          Diagnostic.Kind.WARNING, "Invalid element：${element.simpleName}"
         )
         continue
       }
       try {
+
       } catch (e: Exception) {
         e.printStackTrace()
         logger.printMessage(Diagnostic.Kind.ERROR, e.message)
-        return false
+        return true
       }
     }
-    try {
-    } catch (e: Exception) {
-      e.printStackTrace()
-      logger.printMessage(Diagnostic.Kind.ERROR, e.message)
-    }
-    return false
+    return true
   }
 
   private fun getRawType(typeName: TypeName): TypeName {
