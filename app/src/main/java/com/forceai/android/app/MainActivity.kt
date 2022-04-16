@@ -8,16 +8,17 @@ import com.forceai.android.aoplization.ProxyContext
 import com.forceai.android.aoplization.ProxyContinuation
 import com.forceai.android.aoplization.annotation.ProxyEntry
 import com.forceai.android.aoplization.annotation.ProxyHandlerMark
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 import java.util.concurrent.Callable
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class MainActivity: AppCompatActivity() {
+
+  private val proxyAccompany by lazy {
+    MainActivity_ProxyAccompany(this)
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -32,6 +33,9 @@ class MainActivity: AppCompatActivity() {
     }
   }
 
+  /**
+   * For normal function
+   */
   @ProxyEntry
   @Tag(TAG_LOGIN)
   private fun click2LikeItem(item: Item): Any? {
@@ -39,6 +43,18 @@ class MainActivity: AppCompatActivity() {
     return item
   }
 
+  /**
+   * ********** 使用插件将实现转换为调用伴生类同方法 ***********
+   * ************************ ↓ **************************
+   * ************************ ↓ **************************
+   */
+  private fun _click2LikeItem(item: Item): Any? {
+    return proxyAccompany.click2LikeItem(item)
+  }
+
+  /**
+   * For coroutine function
+   */
   @ProxyEntry
   @Tag(TAG_LOGIN)
   private suspend fun click2LikeItemCoroutine(item: Item): Any? {
@@ -47,10 +63,48 @@ class MainActivity: AppCompatActivity() {
     return item
   }
 
+  /**
+   * ********** 使用插件将实现转换为调用伴生类同方法 ***********
+   * ************************ ↓ **************************
+   * ************************ ↓ **************************
+   */
+  private suspend fun _click2LikeItemCoroutine(item: Item): Any? {
+    return proxyAccompany.click2LikeItemCoroutine(item)
+  }
+
+  /**
+   * For normal function
+   * 使用插件生成的两个代理方法，方法内容为原调用的copy，为public方法，供伴生类反向调用
+   */
+  fun click2LikeItemProxy(item: Item): Any? {
+    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
+    return item.name
+  }
+
+  /**
+   * For coroutine function
+   * 使用插件生成的两个代理方法，方法内容为原调用的copy，为public方法，供伴生类反向调用
+   */
+  suspend fun click2LikeItemProxyCoroutine(item: Item) = coroutineScope<Any?> {
+    Toast.makeText(this@MainActivity, item.name, Toast.LENGTH_SHORT).show()
+    delay(1000)
+    return@coroutineScope item.name
+  }
+
+}
+
+/**
+ * 此为使用注解处理器生成的伴生辅助调用类，目的是简化字节码修改复杂度，并且提前通过元注解标明一些调用点信息
+ */
+@ProxyHostMeta("com.forceai.android.app.MainActivity")
+class MainActivity_ProxyAccompany(val target: MainActivity) {
+
   // For normal function
-  private fun _click2LikeItem(item: Item): Any? {
+  fun click2LikeItem(item: Item): Any? {
     return DefaultHandler().invoke(ProxyContext(
-      MainActivity::class.java.getDeclaredMethod("click2LikeItem", Item::class.java)
+      target.javaClass.getDeclaredMethod("click2LikeItem",
+        Class.forName("com.forceai.android.app.Item")
+      )
     ), object : ProxyContinuation {
       override fun resume(returnValue: Any?): Any? {
         return click2LikeItemProxy(item).let {
@@ -61,38 +115,62 @@ class MainActivity: AppCompatActivity() {
   }
 
   // For coroutine function
-  private suspend fun _click2LikeItemCoroutine(item: Item) = suspendCoroutine<Any?> { continuation ->
-    DefaultHandler().invoke(ProxyContext(
-      MainActivity::class.java.getDeclaredMethod("click2LikeItem", Item::class.java)
-    ), object : ProxyContinuation {
-      override fun resume(returnValue: Any?): Any? {
-        CoroutineScope(continuation.context).launch {
-          click2LikeItemProxyCoroutine(item).let {
-            returnValue ?: it
-          }.also {
-            continuation.resume(it)
+  suspend fun click2LikeItemCoroutine(item: Item) = coroutineScope {
+    return@coroutineScope suspendCoroutine<Any?> { continuation ->
+      DefaultHandler().invoke(ProxyContext(
+        target.javaClass.getDeclaredMethod("click2LikeItem",
+          Class.forName("com.forceai.android.app.Item")
+        )
+      ), object : ProxyContinuation {
+        override fun resume(returnValue: Any?): Any? {
+          this@coroutineScope.launch {
+            click2LikeItemProxyCoroutine(item).let {
+              returnValue ?: it
+            }.also {
+              continuation.resume(it)
+            }
           }
+          return returnValue
         }
-        return returnValue
-      }
-    })
+      })
+    }
   }
 
+  @ProxyHostMethodMeta("click2LikeItem", ["com.forceai.android.app.Item"])
   private fun click2LikeItemProxy(item: Item): Any? {
-    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
+    // TODO inject associated host invocation in phase of transforming
+    // return target.click2LikeItemProxy(item)
     return null
   }
 
-  private suspend fun click2LikeItemProxyCoroutine(item: Item) = suspendCoroutine<Any?> { continuation ->
-    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
-    CoroutineScope(continuation.context).launch {
-      delay(1000)
-      continuation.resume(item)
-    }
+  @ProxyHostMethodMeta("click2LikeItem", ["com.forceai.android.app.Item"])
+  private suspend fun click2LikeItemProxyCoroutine(item: Item) = coroutineScope<Any?> {
+    // TODO inject associated host invocation in phase of transforming
+    target.click2LikeItemProxyCoroutine(item)
+    // return null
   }
 
 }
 
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.CLASS)
+annotation class ProxyHostMeta(
+  // com.forceai.android.app.MainActivity
+  val clazz: String
+)
+
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.FUNCTION)
+annotation class ProxyHostMethodMeta(
+  // click2LikeItem
+  val name: String,
+  // [com.forceai.android.app.Item]
+  val params: Array<String>
+)
+
+/**
+ * 关于是否有可能产生的内存泄露处理，还未相当好办法，调用点可能被外部持有造成泄露
+ */
 class ProxyInvoke(function: () -> Any?): Callable<Any?> {
 
   private val funcRef = WeakReference(function)
