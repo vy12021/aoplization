@@ -22,9 +22,9 @@ extraJavaModuleInfo {
 
 compileJava {
   options.compilerArgs = [
-          '--add-exports', 'jdk.compiler/com.sun.tools.javac.code=componentization.compiler',
+          '--add-exports', 'jdk.compiler/com.sun.tools.javac.code=aoplization.compiler',
           '--add-opens', 'jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED',
-          '--add-exports', 'jdk.compiler/com.sun.tools.javac.util=componentization.compiler',
+          '--add-exports', 'jdk.compiler/com.sun.tools.javac.util=aoplization.compiler',
           '--add-opens', 'jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
   ]
 }

@@ -1,4 +1,4 @@
-module componentization.compiler {
+module aoplization.compiler {
   requires com.squareup.javapoet;
   requires com.google.auto.common;
   requires com.google.auto.service;
@@ -8,4 +8,5 @@ module componentization.compiler {
   requires org.jetbrains.annotations;
   requires jdk.compiler;
   requires kotlin.stdlib;
+  exports com.forceai.android.aoplization.compiler;
 }

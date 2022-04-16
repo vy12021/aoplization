@@ -55,7 +55,7 @@ public class ServiceTest {
 
     assertAbout(javaSource()).that(source)
             .withCompilerOptions("-Xlint:-processing")
-            .processedWith(new ComponentizationProcessor())
+            .processedWith(new AoplizationProcessor())
             .compilesWithoutWarnings()
             .and()
             .generatesSources(bindingSource);

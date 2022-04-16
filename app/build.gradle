@@ -17,6 +17,7 @@ android {
 dependencies {
   implementation project(path: ':annotation')
   implementation project(path: ':runtime')
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.1"
   annotationProcessor project(':compiler')
   kapt project(':compiler')
 }

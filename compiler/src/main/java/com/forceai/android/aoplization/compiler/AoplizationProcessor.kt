@@ -40,7 +40,9 @@ class AoplizationProcessor : AbstractProcessor() {
     typeUtils = env.typeUtils
     logger = env.messager
     filer = env.filer
-    logger.printMessage(Diagnostic.Kind.NOTE, "options--->{debuggable: $debugEnabled}")
+    logger.printMessage(
+      Diagnostic.Kind.NOTE, "options--->{debuggable: $debugEnabled}"
+    )
     trees = env.trees
   }
 
