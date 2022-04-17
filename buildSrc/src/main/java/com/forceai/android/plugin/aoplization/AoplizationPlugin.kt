@@ -34,6 +34,7 @@ class AoplizationPlugin: Plugin<Project> {
   private val Version by lazy { properties.getProperty("implementation-version", "") }
   private val annotationConfig = "${Group}:compiler:${Version}"
   private val runtimeConfig = "${Group}:runtime:${Version}"
+  private val KotlinReflection = "org.jetbrains.kotlin:kotlin-reflect:1.6.20"
 
   override fun apply(project: Project) {
     println(">>>>>>>>>>>>>>>>>>>>>>注册插件Aoplization[${project.name}]<<<<<<<<<<<<<<<<<<<<<<")
@@ -82,6 +83,7 @@ class AoplizationPlugin: Plugin<Project> {
   }
 
   private fun injectDependency(project: Project) {
+    project.addDependency("implementation", KotlinReflection)
     /*project.addDependency("implementation", runtimeConfig)
     project.addProcessor(annotationConfig)*/
   }

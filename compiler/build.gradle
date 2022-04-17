@@ -18,6 +18,12 @@ extraJavaModuleInfo {
     exports('net.ltgt.gradle.incap')
   }
   module('incap-processor-0.3.jar', 'net.ltgt.gradle.incap.processor', '0.3')
+//  module('kotlinpoet-1.11.0.jar', 'com.squareup.kotlinpoet', '1.11.0') {
+//    requires('kotlin.stdlib')
+//  }
+  module('symbol-processing-api-1.6.20-1.0.5.jar', 'symbol.processing.api', '1.6.20-1.0.5') {
+    requires('kotlin.stdlib')
+  }
 }
 
 compileJava {
@@ -32,6 +38,9 @@ compileJava {
 dependencies {
   implementation project(':annotation')
   implementation 'com.squareup:javapoet:1.13.0'
+  implementation 'com.squareup:kotlinpoet-ksp:1.11.0'
+  implementation "org.jetbrains.kotlin:kotlin-reflect:1.6.20"
+  implementation("com.google.devtools.ksp:symbol-processing-api:1.6.20-1.0.5")
   implementation 'com.google.auto:auto-common:1.2.1'
   implementation 'org.jetbrains:annotations:23.0.0'
   compileOnly 'com.google.auto.service:auto-service:1.0.1'

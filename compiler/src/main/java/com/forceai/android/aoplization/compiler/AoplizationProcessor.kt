@@ -63,7 +63,6 @@ class AoplizationProcessor : AbstractProcessor() {
         continue
       }
       try {
-
       } catch (e: Exception) {
         e.printStackTrace()
         logger.printMessage(Diagnostic.Kind.ERROR, e.message)

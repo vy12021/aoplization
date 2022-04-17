@@ -1,6 +1,6 @@
 buildscript {
   ext {
-    android_version = '7.1.2'
+    android_version = '7.1.3'
     kotlin_version = '1.6.20'
   }
   repositories {
@@ -34,7 +34,7 @@ gradlePlugin {
   plugins {
     componentization {
       id = 'aoplization'
-      implementationClass = 'com.forceai.android.plugin.aoplizatioin.AoplizationPlugin'
+      implementationClass = 'com.forceai.android.plugin.aoplization.AoplizationPlugin'
     }
   }
 }

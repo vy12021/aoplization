@@ -1,6 +1,12 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
+apply plugin: 'com.google.devtools.ksp'
+
+ksp {
+  arg("option1", "value1")
+  arg("option2", "value2")
+}
 
 android {
 
@@ -12,12 +18,17 @@ android {
     }
   }
 
+  sourceSets {
+    main.kotlin.srcDirs += 'build/generated/ksp'
+  }
+
 }
 
 dependencies {
-  implementation project(path: ':annotation')
-  implementation project(path: ':runtime')
+  implementation project(':annotation')
+  implementation project(':runtime')
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.1"
-  annotationProcessor project(':compiler')
-  kapt project(':compiler')
+  ksp project(":compiler")
+//  annotationProcessor project(':compiler')
+//  kapt project(':compiler')
 }

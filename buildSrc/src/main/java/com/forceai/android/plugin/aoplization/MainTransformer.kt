@@ -4,8 +4,6 @@ import com.android.build.api.transform.*
 import javassist.ClassPath
 import javassist.ClassPool
 import javassist.CtClass
-import javassist.bytecode.AnnotationDefaultAttribute
-import javassist.bytecode.annotation.BooleanMemberValue
 import org.gradle.api.Project
 import java.io.File
 import java.io.IOException
@@ -24,7 +22,6 @@ class MainTransformer(private val project: Project): Transform() {
     private const val PACKAGE_RUNTIME = "com.forceai.android.aoplization"
     private const val PACKAGE_ANNOTATION = "${PACKAGE_RUNTIME}.annotation"
     private const val RUNTIME = "${PACKAGE_RUNTIME}.Aoplization"
-    private const val ANNOTATION_AUTOWIRED = "${PACKAGE_ANNOTATION}.AutoWired"
     // 此包比较特殊
     private const val ANNOTATION_META = "${PACKAGE_RUNTIME}.Meta"
 
@@ -379,22 +376,7 @@ class MainTransformer(private val project: Project): Transform() {
    */
   private fun transformComponentInject(classPool: ClassPool, classEntryName: String): CtClass? {
     val ctClass = getCtClassFromClassEntry(classPool, classEntryName)
-    if (ctClass.isFrozen) {
-      return null
-    }
-    val defaultMode = classPool.get(ANNOTATION_AUTOWIRED).getDeclaredMethod("lazy")
-        .methodInfo.let {methodInfo ->
-          ((methodInfo.getAttribute(AnnotationDefaultAttribute.tag)
-              as AnnotationDefaultAttribute).defaultValue as BooleanMemberValue).value
-    }
-    var hasChanged = false
-    ctClass.declaredFields.filter { it.hasAnnotation(ANNOTATION_AUTOWIRED) }.forEach {field ->
-      hasChanged = true
-    }
-    if (hasChanged) {
-      ctClass.freeze()
-    }
-    return if (hasChanged) ctClass else null
+    return null
   }
 
   /**
