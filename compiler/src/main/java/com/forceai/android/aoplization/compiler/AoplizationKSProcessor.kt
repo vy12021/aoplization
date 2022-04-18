@@ -8,14 +8,12 @@ import com.forceai.android.aoplization.annotation.ProxyHostMeta
 import com.forceai.android.aoplization.annotation.ProxyHostMethodMeta
 import com.google.devtools.ksp.*
 import com.google.devtools.ksp.processing.*
-import com.google.devtools.ksp.symbol.KSAnnotated
-import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSFunctionDeclaration
-import com.google.devtools.ksp.symbol.KSNode
+import com.google.devtools.ksp.symbol.*
 import com.google.devtools.ksp.visitor.KSDefaultVisitor
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ksp.*
 import kotlin.reflect.full.declaredMemberFunctions
+import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.javaType
 
 @OptIn(KspExperimental::class)
@@ -48,8 +46,20 @@ class AoplizationKSProcessor(
 
   private val ProxyHostMethodMetaClass by lazy { ProxyHostMethodMeta::class }
 
-  private val ProxyEntryClassDeclaration by lazy {
+  private val ProxyEntryDeclaration by lazy {
     resolver.getClassDeclarationByName(resolver.getKSNameFromString(ProxyEntryClass.qualifiedName!!))!!
+  }
+
+  private val ProxyHostMetaDeclaration by lazy {
+    resolver.getClassDeclarationByName(resolver.getKSNameFromString(ProxyHostMetaClass.qualifiedName!!))!!
+  }
+
+  private val ProxyHostMethodMetaDeclaration by lazy {
+    resolver.getClassDeclarationByName(resolver.getKSNameFromString(ProxyHostMethodMetaClass.qualifiedName!!))!!
+  }
+
+  private val MainProxyHandlerDeclaration by lazy {
+    resolver.getClassDeclarationByName(resolver.getKSNameFromString(MainProxyHandlerClass.qualifiedName!!))!!
   }
 
   private val ProxyContextClassName by lazy {
@@ -64,9 +74,13 @@ class AoplizationKSProcessor(
     ClassName.bestGuess("$AOP_PACKAGE.ProxyHandler")
   }
 
-  private val ProxyInvokeClassName by lazy {
-    ClassName.bestGuess("$AOP_PACKAGE.ProxyInvoke")
-  }
+  private fun KSAnnotation.isInternalUse() =
+    annotationType.resolve().declaration.qualifiedName?.asString()?.let {
+      return@let it == ProxyEntryDeclaration.qualifiedName?.asString()
+          || it == ProxyHostMetaDeclaration.qualifiedName?.asString()
+          || it == ProxyHostMethodMetaDeclaration.qualifiedName?.asString()
+          || it == MainProxyHandlerDeclaration.qualifiedName?.asString()
+    } == true
 
   private val declaredHandlers = mutableMapOf<String, KSClassDeclaration>()
 
@@ -134,7 +148,7 @@ class AoplizationKSProcessor(
     ).also { fileBuilder ->
       fileBuilder.addFileComment(ACCOMPANY_FILE_COMMENT)
       fileBuilder.addType(TypeSpec.classBuilder(fileBuilder.name).also { accompanyBuilder ->
-        accompanyBuilder.addAnnotation(AnnotationSpec.get(ProxyHostMeta(target.qualifiedName?.getQualifier()!!)))
+        accompanyBuilder.addAnnotation(AnnotationSpec.get(ProxyHostMeta(target.qualifiedName?.asString()!!)))
         accompanyBuilder.primaryConstructor(
           PropertySpec.builder(TARGET_FEILD_NAME, target.toClassName(), listOf(KModifier.PRIVATE)).build()
         )
@@ -149,19 +163,41 @@ class AoplizationKSProcessor(
   @OptIn(KotlinPoetKspPreview::class)
   private fun buildEntryAccompanyFunction(entryFunc: KSFunctionDeclaration) =
     buildEntryStub(entryFunc).also { funcBuilder ->
-      funcBuilder.addCode(CodeBlock.of(
-        "${entryFunc.returnType?.let { "return " } ?: ""}%1T().invoke(%2T(\n" +
-            "  ${TARGET_FEILD_NAME}.javaClass.getDeclaredMethod(%3S)\n" +
-            "), object: %4T {\n" +
-            "  override fun resume(returnValue: Any?): Any? {\n" +
-            "    %[return %5L(%6L).let {\n${entryFunc.}%]" +
-            "      returnValue ?: it\n" +
-            "    }\n" +
-            "  }\n" +
-            "})",
+      funcBuilder.addModifiers(KModifier.INTERNAL)
+      funcBuilder.addCode(CodeBlock.of("""
+        |${entryFunc.returnType?.let { "return " } ?: ""}%1T().invoke(%2T(
+        |  arrayOf(%3L)
+        |), object: %4T {
+        |  override fun resume(returnValue: Any?): Any? {
+        |    return %5L(%6L).let·{
+        |      returnValue ?: it
+        |    }
+        |  }
+        |})""".trimMargin(),
         declaredHandlers[entryFunc.getAnnotationsByType(ProxyEntryClass).first().handlerKey]?.toClassName(),
         ProxyContextClassName,
-        entryFunc.simpleName.getShortName(),
+        entryFunc.annotations.filter { it.isInternalUse().not() }.iterator().let {
+          val annotationBuilder = StringBuilder("\n")
+          while (it.hasNext()) {
+            val ksAnnotation = it.next()
+            val ksDeclaration = ksAnnotation.annotationType.resolve().declaration
+            annotationBuilder.append("\t\t")
+            annotationBuilder.append(ksDeclaration.qualifiedName?.asString())
+            annotationBuilder.append(if (ksAnnotation.arguments.isNotEmpty()) "(\n" else "(")
+            ksAnnotation.arguments.iterator().also { argIterator ->
+              while (argIterator.hasNext()) {
+                val ksArg = argIterator.next()
+                val valueBlock = CodeBlock.builder()
+                addValueToBlock(ksArg.value!!, valueBlock)
+                annotationBuilder.append("\t\t\t${ksArg.name?.asString()} = ${valueBlock.build()}")
+                if (argIterator.hasNext()) annotationBuilder.append(",\n")
+              }
+            }
+            annotationBuilder.append(if (ksAnnotation.arguments.isNotEmpty()) "\n\t\t)" else ")")
+            if (it.hasNext()) annotationBuilder.append(",\n")
+          }
+          annotationBuilder.append("\n\t").toString()
+        },
         ProxyContinuationClassName,
         "${entryFunc.simpleName.getShortName()}$SUFFIX_ACCOMPANY_FUNCTION",
         entryFunc.invokeArgList()
@@ -171,6 +207,7 @@ class AoplizationKSProcessor(
   private fun buildEntryProxyFunction(entryFunc: KSFunctionDeclaration) =
     buildEntryStub(entryFunc,
       "${entryFunc.simpleName.getShortName()}$SUFFIX_ACCOMPANY_FUNCTION").also { funcBuilder ->
+      funcBuilder.addModifiers(KModifier.PRIVATE)
       funcBuilder.addCode(buildEntryProxyCodeBlock(entryFunc))
     }
 
@@ -189,8 +226,7 @@ class AoplizationKSProcessor(
         }
         return@let true
       }
-    }
-    hostMethod?.call("target", "p1", "p2", "p3")
+    }?.also { it.isAccessible = true }?.call("target", "p1", "p2", "p3")
   }
 
   @OptIn(KotlinPoetKspPreview::class)
@@ -203,42 +239,41 @@ class AoplizationKSProcessor(
         entryFunc.invokeArgList()
       )
     } else {
-      CodeBlock.builder().apply {
-        addStatement(
-          "val hostMethod = %1L::class.%2M.find {\n" +
-              "  it.name == %3S && it.parameters.let { kParameters ->\n" +
-              "    if (kParameters.size != %4L) return@let false\n" +
-              "    if (kParameters.isEmpty()) return@let true\n" +
-              "    val entryParameterTypeNames = arrayOf(%5L)\n" +
-              "    kParameters.forEachIndexed { index, kParameter ->\n" +
-              "      if (kParameter.type.%6M.typeName != entryParameterTypeNames[index]) {\n" +
-              "        return@let false\n" +
-              "      }\n" +
-              "    }\n" +
-              "    return@let true\n" +
-              "  }\n" +
-              "}",
-          TARGET_FEILD_NAME,
-          MemberName("kotlin.reflect.full", "declaredMemberFunctions"),
-          entryFunc.simpleName.getShortName(),
-          entryFunc.parameters.size,
-          entryFunc.parameters.let {
+      CodeBlock.of("""
+        |${entryFunc.returnType?.let { "return " } ?: ""}%1L::class.%2M.find·{
+        |  it.name == %3S && it.parameters.let·{ kParameters ->
+        |    if (kParameters.size != %4L) return@let false
+        |    if (kParameters.isEmpty()) return@let true
+        |    val entryParameterTypeNames = arrayOf(%5L)
+        |    kParameters.forEachIndexed { index, kParameter ->
+        |      if (kParameter.type.%6M.typeName != entryParameterTypeNames[index]) {
+        |        return@let false
+        |      }
+        |    }
+        |    return@let true
+        |  }
+        |}?.also { it.%7M = true }?.call(%8L)""".trimMargin(),
+        TARGET_FEILD_NAME,
+        MemberName("kotlin.reflect.full", "declaredMemberFunctions"),
+        entryFunc.simpleName.getShortName(),
+        entryFunc.parameters.size,
+        entryFunc.parameters.let {
+          if (it.isEmpty()) return@let ""
+          it.iterator().let { iterator ->
             val namesBuilder = StringBuilder()
-            it.forEach {
-              namesBuilder.append(
-                "\"${it.type.resolve().toTypeName()}\"").append(", ")
+            while (iterator.hasNext()) {
+              namesBuilder.append("\"${iterator.next().type.resolve().toTypeName()}\"")
+              if (iterator.hasNext()) namesBuilder.append(", ")
             }
-            return@let namesBuilder.toString()
-          },
-          MemberName("kotlin.reflect.jvm", "javaType")
-        )
-        addStatement(
-          "${entryFunc.returnType?.let { "return " } ?: ""}hostMethod?.call(%L)",
-          entryFunc.invokeArgList(false).let {
-            if (isEmpty()) TARGET_FEILD_NAME else "$TARGET_FEILD_NAME, $it"
+            namesBuilder.toString()
           }
-        )
-      }.build()
+        },
+        MemberName("kotlin.reflect.jvm", "javaType"),
+        MemberName("kotlin.reflect.jvm", "isAccessible"),
+        entryFunc.invokeArgList(false).let {
+          if (it.isEmpty()) TARGET_FEILD_NAME else "$TARGET_FEILD_NAME, $it"
+        }
+      )
     }
 
   @OptIn(KotlinPoetKspPreview::class)
@@ -246,7 +281,7 @@ class AoplizationKSProcessor(
                              name: String = entryFunc.simpleName.getShortName()) =
     FunSpec.builder(name).also { funcBuilder ->
       funcBuilder.addAnnotations(entryFunc.annotations.filter {
-        it.shortName.getShortName().startsWith("Proxy").not()
+        it.isInternalUse().not()
       }.map { it.toAnnotationSpec() }.toList())
       funcBuilder.addModifiers(KModifier.FINAL)
       entryFunc.parameters.forEachIndexed { index, parameter ->

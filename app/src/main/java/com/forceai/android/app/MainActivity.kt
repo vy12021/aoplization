@@ -10,7 +10,6 @@ import com.forceai.android.aoplization.ProxyContinuation
 import com.forceai.android.aoplization.ProxyHandler
 import com.forceai.android.aoplization.annotation.MainProxyHandler
 import com.forceai.android.aoplization.annotation.ProxyEntry
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -32,9 +31,9 @@ class MainActivity: AppCompatActivity() {
         ""
       }
       // For coroutine function
-      GlobalScope.launch {
-        click2LikeItemCoroutine(Item("test"))
-      }
+//      GlobalScope.launch {
+//        click2LikeItemCoroutine(Item("test"))
+//      }
     }
   }
 
@@ -42,10 +41,11 @@ class MainActivity: AppCompatActivity() {
    * For normal function
    */
   @ProxyEntry("DefaultHandler2")
-  @Tag(TAG_LOGIN)
-  private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), array2: Array<Item> = arrayOf(), array3: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
-    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
-    return item
+  @Tag(TAG_LOGIN, tags = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
+  @Mark(TAG_LOGIN, marks = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
+  private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
+//    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
+    return proxyAccompany.click2LikeItem(item = item, id = id, array = array, arg = arg, block = block)
   }
 
   /**
@@ -107,9 +107,7 @@ class _MainActivity_ProxyAccompany(val target: MainActivity) {
   // For normal function
   fun click2LikeItem(item: Item): Any? {
     return MainDefaultHandler().invoke(ProxyContext(
-      target.javaClass.getDeclaredMethod("click2LikeItem",
-        Class.forName("com.forceai.android.app.Item")
-      )
+      MainActivity::click2LikeItemProxy.annotations.toTypedArray()
     ), object : ProxyContinuation {
       override fun resume(returnValue: Any?): Any? {
         return click2LikeItemProxy(item).let {
@@ -123,9 +121,7 @@ class _MainActivity_ProxyAccompany(val target: MainActivity) {
   suspend fun click2LikeItemCoroutine(item: Item) = coroutineScope {
     return@coroutineScope suspendCoroutine<Any?> { continuation ->
       MainDefaultHandler().invoke(ProxyContext(
-        target.javaClass.getDeclaredMethod("click2LikeItem",
-          Class.forName("com.forceai.android.app.Item")
-        )
+        MainActivity::click2LikeItemProxy.annotations.toTypedArray()
       ), object : ProxyContinuation {
         override fun resume(returnValue: Any?): Any? {
           this@coroutineScope.launch {
@@ -176,8 +172,8 @@ annotation class ProxyHostMethodMeta(
 @MainProxyHandler("DefaultHandler2")
 class DefaultHandler2: ProxyHandler() {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
-    return when (context.method.getAnnotation(Tag::class.java)?.value) {
-      TAG_LOGIN -> {
+    return when (context.annotations.firstOrNull()) {
+      is Tag -> {
         checkIfLogin { logged ->
           if (logged) {
             continuation.resume(null)
@@ -192,8 +188,8 @@ class DefaultHandler2: ProxyHandler() {
 @MainProxyHandler
 class MainDefaultHandler: ProxyHandler() {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
-    return when (context.method.getAnnotation(Tag::class.java)?.value) {
-      TAG_LOGIN -> {
+    return when (context.annotations.firstOrNull()) {
+      is Tag -> {
         checkIfLogin { logged ->
           if (logged) {
             continuation.resume(null)
@@ -210,7 +206,15 @@ const val TAG_LOGIN = "login"
 @Retention(AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.FUNCTION)
 annotation class Tag(
-  val value: String
+  val value: String,
+  val tags: Array<String> = []
+)
+
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.FUNCTION)
+annotation class Mark(
+  val value: String,
+  val marks: Array<String> = []
 )
 
 private fun checkIfLogin(callback: (Boolean) -> Unit) {

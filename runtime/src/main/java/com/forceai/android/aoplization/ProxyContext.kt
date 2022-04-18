@@ -1,7 +1,17 @@
 package com.forceai.android.aoplization
 
-import java.lang.reflect.Method
-
 data class ProxyContext(
-  val method: Method
-)
+  val annotations: Array<Annotation>
+) {
+  override fun equals(other: Any?): Boolean {
+    if (this === other) return true
+    if (javaClass != other?.javaClass) return false
+    other as ProxyContext
+    if (!annotations.contentEquals(other.annotations)) return false
+    return true
+  }
+
+  override fun hashCode(): Int {
+    return annotations.contentHashCode()
+  }
+}
