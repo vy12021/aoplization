@@ -43,7 +43,7 @@ class MainActivity: AppCompatActivity() {
    */
   @ProxyEntry("DefaultHandler2")
   @Tag(TAG_LOGIN)
-  private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
+  private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), array2: Array<Item> = arrayOf(), array3: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
     Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
     return item
   }
