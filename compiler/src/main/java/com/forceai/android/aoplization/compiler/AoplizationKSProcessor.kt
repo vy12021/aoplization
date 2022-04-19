@@ -84,7 +84,7 @@ class AoplizationKSProcessor(
 
   private val declaredHandlers = mutableMapOf<String, KSClassDeclaration>()
 
-  private val entriesInTargets = mutableMapOf<KSClassDeclaration, MutableList<KSFunctionDeclaration>>()
+  private val entriesInTargets = mutableMapOf<KSDeclarationContainer, MutableList<KSFunctionDeclaration>>()
 
   override fun process(resolver: Resolver): List<KSAnnotated> {
     println("================= start process ========================")
@@ -118,13 +118,20 @@ class AoplizationKSProcessor(
       val handlerKey = proxyEntry.handlerKey
       val isDefaultHandler = handlerKey.isEmpty()
       check(annotatedElement is KSFunctionDeclaration)
-      check(!annotatedElement.isLocal() && !annotatedElement.isExpect && !annotatedElement.isActual)
-      logger.warn("Found ProxyEntry specific the " +
-              "ProxyHandler{Key=$handlerKey, isDefault=$isDefaultHandler}", annotatedElement)
-      val targetDeclaration = annotatedElement.parentDeclaration
-      check(targetDeclaration is KSClassDeclaration)
-      val targetEntries = entriesInTargets[targetDeclaration] ?: mutableListOf<KSFunctionDeclaration>().also {
-        entriesInTargets[targetDeclaration] = it
+      check(
+        annotatedElement.parentDeclaration !is KSFunctionDeclaration
+        && !annotatedElement.isExpect && !annotatedElement.isActual
+      )
+      logger.warn(
+        "Found ProxyEntry specific the ProxyHandler{Key=$handlerKey, isDefault=$isDefaultHandler}",
+        annotatedElement
+      )
+      val container = annotatedElement.parentDeclaration ?: annotatedElement.containingFile
+      // fixme check if is A class or a file for global declarations
+      check(container is KSFile || container is KSClassDeclaration)
+      check(container is KSDeclarationContainer)
+      val targetEntries = entriesInTargets[container] ?: mutableListOf<KSFunctionDeclaration>().also {
+        entriesInTargets[container] = it
       }
       targetEntries.add(annotatedElement)
     }
@@ -141,23 +148,46 @@ class AoplizationKSProcessor(
   }
 
   @OptIn(KotlinPoetKspPreview::class, DelicateKotlinPoetApi::class)
-  private fun generateProxyAccompanyClass(target: KSClassDeclaration,
+  private fun generateProxyAccompanyClass(container: KSDeclarationContainer,
                                           entries: List<KSFunctionDeclaration>) {
-    FileSpec.builder(
-      target.packageName.asString(), "${target.simpleName.getShortName()}$SUFFIX_ACCOMPANY_CLASS"
-    ).also { fileBuilder ->
-      fileBuilder.addFileComment(ACCOMPANY_FILE_COMMENT)
-      fileBuilder.addType(TypeSpec.classBuilder(fileBuilder.name).also { accompanyBuilder ->
-        accompanyBuilder.addAnnotation(AnnotationSpec.get(ProxyHostMeta(target.qualifiedName?.asString()!!)))
-        accompanyBuilder.primaryConstructor(
-          PropertySpec.builder(TARGET_FEILD_NAME, target.toClassName(), listOf(KModifier.PRIVATE)).build()
-        )
-        entries.forEach { entryFunc ->
-          accompanyBuilder.addFunction(buildEntryAccompanyFunction(entryFunc).build())
-          accompanyBuilder.addFunction(buildEntryProxyFunction(entryFunc).build())
-        }
-      }.build())
-    }.build().writeTo(generator, false)
+    when (container) {
+      is KSClassDeclaration -> FileSpec.builder(
+        container.packageName.asString(), "${container.simpleName.getShortName()}$SUFFIX_ACCOMPANY_CLASS"
+      ).also { fileBuilder ->
+        fileBuilder.addFileComment(ACCOMPANY_FILE_COMMENT)
+        fileBuilder.addType(TypeSpec.classBuilder(fileBuilder.name).also { accompanyBuilder ->
+          accompanyBuilder.addAnnotation(
+            AnnotationSpec.get(ProxyHostMeta(container.qualifiedName?.asString()!!))
+          )
+          accompanyBuilder.primaryConstructor(
+            PropertySpec.builder(TARGET_FEILD_NAME, container.toClassName(), listOf(KModifier.PRIVATE)).build()
+          )
+          entries.forEach { entryFunc ->
+            accompanyBuilder.addFunction(buildEntryAccompanyFunction(entryFunc).build())
+            accompanyBuilder.addFunction(buildEntryProxyFunction(entryFunc).build())
+          }
+        }.build())
+      }.build()
+
+      is KSFile -> FileSpec.builder(
+        container.packageName.asString(), "${container.fileName}$SUFFIX_ACCOMPANY_CLASS"
+      ).also { fileBuilder ->
+        fileBuilder.addFileComment(ACCOMPANY_FILE_COMMENT)
+        fileBuilder.addType(TypeSpec.classBuilder(fileBuilder.name).also { accompanyBuilder ->
+          accompanyBuilder.addAnnotation(
+            AnnotationSpec.get(ProxyHostMeta(container.qualifiedName?.asString()!!))
+          )
+          accompanyBuilder.primaryConstructor(
+            PropertySpec.builder(TARGET_FEILD_NAME, container.toClassName(), listOf(KModifier.PRIVATE)).build()
+          )
+          entries.forEach { entryFunc ->
+            accompanyBuilder.addFunction(buildEntryAccompanyFunction(entryFunc).build())
+            accompanyBuilder.addFunction(buildEntryProxyFunction(entryFunc).build())
+          }
+        }.build())
+      }.build()
+      else -> throw UnsupportedOperationException("")
+    }.writeTo(generator, false)
   }
 
   @OptIn(KotlinPoetKspPreview::class)
@@ -166,7 +196,7 @@ class AoplizationKSProcessor(
       funcBuilder.addModifiers(KModifier.INTERNAL)
       funcBuilder.addCode(CodeBlock.of("""
         |${entryFunc.returnType?.let { "return " } ?: ""}%1T().invoke(%2T(
-        |  arrayOf(%3L)
+        |  %3L
         |), object: %4T {
         |  override fun resume(returnValue: Any?): Any? {
         |    return %5L(%6L).let·{
@@ -174,30 +204,36 @@ class AoplizationKSProcessor(
         |    }
         |  }
         |})""".trimMargin(),
-        declaredHandlers[entryFunc.getAnnotationsByType(ProxyEntryClass).first().handlerKey]?.toClassName(),
+        declaredHandlers[entryFunc.getAnnotationsByType(ProxyEntryClass)
+          .first().handlerKey]?.toClassName(),
         ProxyContextClassName,
-        entryFunc.annotations.filter { it.isInternalUse().not() }.iterator().let {
-          val annotationBuilder = StringBuilder("\n")
+        entryFunc.annotations.filter {
+          it.isInternalUse().not()
+        }.takeIf { it.count() > 0 }?.iterator()?.let {
+          val arrayOfCoder = CodeBlock.builder()
+          arrayOfCoder.add("arrayOf(⇥⇥\n")
           while (it.hasNext()) {
             val ksAnnotation = it.next()
             val ksDeclaration = ksAnnotation.annotationType.resolve().declaration
-            annotationBuilder.append("\t\t")
-            annotationBuilder.append(ksDeclaration.qualifiedName?.asString())
-            annotationBuilder.append(if (ksAnnotation.arguments.isNotEmpty()) "(\n" else "(")
+            arrayOfCoder.add("%L(⇥\n", ksDeclaration.qualifiedName?.asString())
             ksAnnotation.arguments.iterator().also { argIterator ->
               while (argIterator.hasNext()) {
                 val ksArg = argIterator.next()
-                val valueBlock = CodeBlock.builder()
-                addValueToBlock(ksArg.value!!, valueBlock)
-                annotationBuilder.append("\t\t\t${ksArg.name?.asString()} = ${valueBlock.build()}")
-                if (argIterator.hasNext()) annotationBuilder.append(",\n")
+                val valueBlock = CodeBlock.builder().apply {
+                  addValueToBlock(ksArg.value!!, this)
+                }
+                arrayOfCoder.add(
+                  "%1L = %2L%3L\n",
+                  ksArg.name?.asString(),
+                  valueBlock.build().toString(),
+                  if (argIterator.hasNext()) "," else ""
+                )
               }
             }
-            annotationBuilder.append(if (ksAnnotation.arguments.isNotEmpty()) "\n\t\t)" else ")")
-            if (it.hasNext()) annotationBuilder.append(",\n")
+            arrayOfCoder.add("⇤)%L\n", if (it.hasNext()) "," else "")
           }
-          annotationBuilder.append("\n\t").toString()
-        },
+          arrayOfCoder.add("⇤)⇤").build()
+        } ?: "arrayOf()",
         ProxyContinuationClassName,
         "${entryFunc.simpleName.getShortName()}$SUFFIX_ACCOMPANY_FUNCTION",
         entryFunc.invokeArgList()
@@ -206,7 +242,8 @@ class AoplizationKSProcessor(
 
   private fun buildEntryProxyFunction(entryFunc: KSFunctionDeclaration) =
     buildEntryStub(entryFunc,
-      "${entryFunc.simpleName.getShortName()}$SUFFIX_ACCOMPANY_FUNCTION").also { funcBuilder ->
+      "${entryFunc.simpleName.getShortName()}$SUFFIX_ACCOMPANY_FUNCTION"
+    ).also { funcBuilder ->
       funcBuilder.addModifiers(KModifier.PRIVATE)
       funcBuilder.addCode(buildEntryProxyCodeBlock(entryFunc))
     }
@@ -222,7 +259,9 @@ class AoplizationKSProcessor(
           "", ""
         )
         kParameters.forEachIndexed { index, kParameter ->
-          if (kParameter.type.javaType.toString() != entryParameterTypeNames[index]) return@let false
+          if (kParameter.type.javaType.toString() != entryParameterTypeNames[index]) {
+            return@let false
+          }
         }
         return@let true
       }
@@ -244,7 +283,7 @@ class AoplizationKSProcessor(
         |  it.name == %3S && it.parameters.let·{ kParameters ->
         |    if (kParameters.size != %4L) return@let false
         |    if (kParameters.isEmpty()) return@let true
-        |    val entryParameterTypeNames = arrayOf(%5L)
+        |    val entryParameterTypeNames = %5L
         |    kParameters.forEachIndexed { index, kParameter ->
         |      if (kParameter.type.%6M.typeName != entryParameterTypeNames[index]) {
         |        return@let false
@@ -257,17 +296,17 @@ class AoplizationKSProcessor(
         MemberName("kotlin.reflect.full", "declaredMemberFunctions"),
         entryFunc.simpleName.getShortName(),
         entryFunc.parameters.size,
-        entryFunc.parameters.let {
-          if (it.isEmpty()) return@let ""
-          it.iterator().let { iterator ->
-            val namesBuilder = StringBuilder()
-            while (iterator.hasNext()) {
-              namesBuilder.append("\"${iterator.next().type.resolve().toTypeName()}\"")
-              if (iterator.hasNext()) namesBuilder.append(", ")
-            }
-            namesBuilder.toString()
+        entryFunc.parameters.takeIf { it.isNotEmpty() }?.iterator()?.let { iterator ->
+          val arrayOfCoder = CodeBlock.builder()
+          arrayOfCoder.add("arrayOf(\n⇥⇥⇥")
+          while (iterator.hasNext()) {
+            arrayOfCoder.add("%1S%2L\n",
+              iterator.next().type.resolve().toTypeName(),
+              if (iterator.hasNext()) "," else ""
+            )
           }
-        },
+          arrayOfCoder.add("⇤)⇤⇤").build()
+        } ?: "arrayOf()",
         MemberName("kotlin.reflect.jvm", "javaType"),
         MemberName("kotlin.reflect.jvm", "isAccessible"),
         entryFunc.invokeArgList(false).let {
