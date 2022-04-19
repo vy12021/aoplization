@@ -151,6 +151,15 @@ class _MainActivity_ProxyAccompany(val target: MainActivity) {
     // return null
   }
 
+  companion object {
+
+    @ProxyEntry
+    fun companionFunction(item: Item): Any? {
+      return null
+    }
+
+  }
+
 }
 
 @Retention(AnnotationRetention.RUNTIME)
@@ -217,8 +226,9 @@ annotation class Mark(
   val marks: Array<String> = []
 )
 
-private fun checkIfLogin(callback: (Boolean) -> Unit) {
-  callback(true)
+@ProxyEntry
+private fun checkIfLogin(callback: (Boolean) -> Any): Any? {
+  return callback(true)
 }
 
 data class Item(val name: String)
