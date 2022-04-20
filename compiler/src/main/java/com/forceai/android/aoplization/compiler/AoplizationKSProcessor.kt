@@ -6,7 +6,10 @@ import com.forceai.android.aoplization.annotation.MainProxyHandler
 import com.forceai.android.aoplization.annotation.ProxyEntry
 import com.forceai.android.aoplization.annotation.ProxyHostMeta
 import com.forceai.android.aoplization.annotation.ProxyHostMethodMeta
-import com.google.devtools.ksp.*
+import com.google.devtools.ksp.KspExperimental
+import com.google.devtools.ksp.closestClassDeclaration
+import com.google.devtools.ksp.getAnnotationsByType
+import com.google.devtools.ksp.isPrivate
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
 import com.google.devtools.ksp.visitor.KSDefaultVisitor
@@ -87,7 +90,7 @@ class AoplizationKSProcessor(
   private val entriesInTargets = mutableMapOf<KSDeclarationContainer, MutableList<KSFunctionDeclaration>>()
 
   override fun process(resolver: Resolver): List<KSAnnotated> {
-    println("================= start process ========================")
+    logger.warn("================= start process ========================")
     this.resolver = resolver
     val unhandledAnnotations = mutableListOf<KSAnnotated>()
 
@@ -146,12 +149,15 @@ class AoplizationKSProcessor(
                                           entries: List<KSFunctionDeclaration>) {
     val targetClassName = container.targetClassName
     FileSpec.builder(
-      targetClassName.packageName, "${targetClassName.simpleName}$SUFFIX_ACCOMPANY_CLASS"
+      targetClassName.packageName,
+      "${targetClassName.canonicalName
+        .substringAfter(targetClassName.packageName + '.').replace('.', '_')
+      }$SUFFIX_ACCOMPANY_CLASS"
     ).also { fileBuilder ->
       fileBuilder.addFileComment(ACCOMPANY_FILE_COMMENT)
       fileBuilder.addType(TypeSpec.classBuilder(fileBuilder.name).also { accompanyBuilder ->
         accompanyBuilder.addAnnotation(
-          AnnotationSpec.get(ProxyHostMeta(targetClassName.canonicalName))
+          AnnotationSpec.get(ProxyHostMeta(targetClassName.reflectionName()))
         )
         if (container is KSClassDeclaration) {
           accompanyBuilder.primaryConstructor(
@@ -249,7 +255,9 @@ class AoplizationKSProcessor(
   @OptIn(KotlinPoetKspPreview::class)
   private fun buildEntryProxyCodeBlock(entryFunc: KSFunctionDeclaration) = let {
     CodeBlock.of("""
-      |${entryFunc.returnType?.let { "return " } ?: ""}Class.forName(%1S).kotlin.%2M.find·{
+      |${entryFunc.returnType?.let { "return " } ?: ""}Class.forName(
+      |  %1S
+      |).kotlin.%2M.find·{
       |  it.name == %3S && it.parameters.let·{ kParameters ->
       |    if (kParameters.size != %4L) return@let false
       |    if (kParameters.isEmpty()) return@let true
@@ -276,7 +284,7 @@ class AoplizationKSProcessor(
           )
         }
         arrayOfCoder.add("⇤)⇤⇤").build()
-      } ?: "arrayOf()",
+      } ?: "arrayOf<String>()",
       MemberName("kotlin.reflect.jvm", "javaType"),
       MemberName("kotlin.reflect.jvm", "isAccessible"),
       entryFunc.invokeArgList(false).let {
@@ -288,13 +296,11 @@ class AoplizationKSProcessor(
     )
   }
 
-  @OptIn(KotlinPoetKspPreview::class)
+  @OptIn(KotlinPoetKspPreview::class, DelicateKotlinPoetApi::class)
   private fun buildEntryStub(entryFunc: KSFunctionDeclaration,
                              name: String = entryFunc.simpleName.getShortName()) =
     FunSpec.builder(name).also { funcBuilder ->
-      funcBuilder.addAnnotations(entryFunc.annotations.filter {
-        it.isInternalUse().not()
-      }.map { it.toAnnotationSpec() }.toList())
+      funcBuilder.addAnnotation(AnnotationSpec.get(entryFunc.methodMeta))
       funcBuilder.addModifiers(KModifier.FINAL)
       entryFunc.parameters.forEachIndexed { index, parameter ->
         funcBuilder.addParameter(
@@ -335,6 +341,29 @@ class AoplizationKSProcessor(
       }
       is KSClassDeclaration -> toClassName()
       else -> throw UnsupportedFunctionTypeException()
+    }
+
+  private val KSFunctionDeclaration.signature
+    get() = let {
+      it.simpleName.asString().plus(
+        it.parameters.joinToString(separator = "/") {
+          it.type.resolve().declaration.let {
+            it.qualifiedName?.asString() ?: it.simpleName.asString()
+          }
+        }
+      )
+    }
+
+  private val KSFunctionDeclaration.methodMeta
+    get() = let { funcDeclaration ->
+      ProxyHostMethodMeta(
+        funcDeclaration.simpleName.asString(),
+        funcDeclaration.parameters.map { parameter ->
+          parameter.type.resolve().declaration.let {
+            it.qualifiedName?.asString() ?: it.simpleName.asString()
+          }
+        }.toTypedArray()
+      )
     }
 
   override fun finish() {

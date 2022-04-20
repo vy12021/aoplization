@@ -19,7 +19,7 @@ import kotlin.coroutines.suspendCoroutine
 class MainActivity: AppCompatActivity() {
 
   private val proxyAccompany by lazy {
-    MainActivity_ProxyAccompany(this)
+    // MainActivity_ProxyAccompany(this)
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,12 +40,12 @@ class MainActivity: AppCompatActivity() {
   /**
    * For normal function
    */
-  @ProxyEntry("DefaultHandler2")
+  // @ProxyEntry("DefaultHandler2")
   @Tag(TAG_LOGIN, tags = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   @Mark(TAG_LOGIN, marks = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
 //    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
-    return proxyAccompany.click2LikeItem(item = item, id = id, array = array, arg = arg, block = block)
+    return null//proxyAccompany.click2LikeItem(item = item, id = id, array = array, arg = arg, block = block)
   }
 
   /**
@@ -151,15 +151,6 @@ class _MainActivity_ProxyAccompany(val target: MainActivity) {
     // return null
   }
 
-  companion object {
-
-    @ProxyEntry
-    fun companionFunction(item: Item): Any? {
-      return null
-    }
-
-  }
-
 }
 
 @Retention(AnnotationRetention.RUNTIME)
@@ -178,7 +169,7 @@ annotation class ProxyHostMethodMeta(
   val params: Array<String>
 )
 
-@MainProxyHandler("DefaultHandler2")
+//@MainProxyHandler("DefaultHandler2")
 class DefaultHandler2: ProxyHandler() {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
     return when (context.annotations.firstOrNull()) {
@@ -194,7 +185,7 @@ class DefaultHandler2: ProxyHandler() {
   }
 }
 
-@MainProxyHandler
+//@MainProxyHandler
 class MainDefaultHandler: ProxyHandler() {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
     return when (context.annotations.firstOrNull()) {
@@ -226,7 +217,6 @@ annotation class Mark(
   val marks: Array<String> = []
 )
 
-@ProxyEntry
 private fun checkIfLogin(callback: (Boolean) -> Any): Any? {
   return callback(true)
 }
