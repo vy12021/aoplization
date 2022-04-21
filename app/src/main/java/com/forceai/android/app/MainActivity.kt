@@ -19,7 +19,7 @@ import kotlin.coroutines.suspendCoroutine
 class MainActivity: AppCompatActivity() {
 
   private val proxyAccompany by lazy {
-    // MainActivity_ProxyAccompany(this)
+    MainActivity_ProxyAccompany(this)
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,12 +40,12 @@ class MainActivity: AppCompatActivity() {
   /**
    * For normal function
    */
-  // @ProxyEntry("DefaultHandler2")
+  @ProxyEntry("DefaultHandler2")
   @Tag(TAG_LOGIN, tags = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   @Mark(TAG_LOGIN, marks = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
 //    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
-    return null//proxyAccompany.click2LikeItem(item = item, id = id, array = array, arg = arg, block = block)
+    return proxyAccompany.click2LikeItem(item = item, id = id, array = array, arg = arg, block = block)
   }
 
   /**
@@ -169,7 +169,7 @@ annotation class ProxyHostMethodMeta(
   val params: Array<String>
 )
 
-//@MainProxyHandler("DefaultHandler2")
+@MainProxyHandler("DefaultHandler2")
 class DefaultHandler2: ProxyHandler() {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
     return when (context.annotations.firstOrNull()) {
