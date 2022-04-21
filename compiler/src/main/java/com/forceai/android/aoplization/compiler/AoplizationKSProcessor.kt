@@ -239,7 +239,9 @@ class AoplizationKSProcessor(
       |${entryFunc.returnType?.let { "return " } ?: ""}this.javaClass.declaredMethods.find·{
       |  it.getAnnotation(%1T::class.java)?.sign == %2S
       |}?.let { mirrorFunc ->
-      |  Class.forName(%3S).getDeclaredMethod(
+      |  Class.forName(
+      |    %3S
+      |  ).getDeclaredMethod(
       |    mirrorFunc.name, *mirrorFunc.parameterTypes
       |  )
       |}?.also { it.isAccessible = true }?.invoke(%4L)""".trimMargin(),
