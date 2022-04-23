@@ -10,9 +10,7 @@ import com.forceai.android.aoplization.ProxyContinuation
 import com.forceai.android.aoplization.ProxyHandler
 import com.forceai.android.aoplization.annotation.MainProxyHandler
 import com.forceai.android.aoplization.annotation.ProxyEntry
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -23,8 +21,10 @@ class MainActivity: AppCompatActivity() {
     setContentView(R.layout.main_activity)
     findViewById<View>(android.R.id.content).setOnClickListener {
       // For normal function
+      Toast.makeText(this, "模拟方法权限，会在3秒后自动resume", Toast.LENGTH_SHORT).show()
       click2LikeItem(Item("test")) {
-        ""
+        Toast.makeText(this, "Hello Android", Toast.LENGTH_SHORT).show()
+        it.name
       }
       // For coroutine function
 //      GlobalScope.launch {
@@ -40,8 +40,7 @@ class MainActivity: AppCompatActivity() {
   @Tag(TAG_LOGIN, tags = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   @Mark(TAG_LOGIN, marks = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
-    Toast.makeText(this, "Hello Android", Toast.LENGTH_SHORT).show()
-    return null
+    return block.invoke(item)
   }
 
   /**
@@ -214,7 +213,13 @@ annotation class Mark(
 )
 
 private fun checkIfLogin(callback: (Boolean) -> Any): Any? {
-  return callback(true)
+  GlobalScope.launch {
+    delay(3000)
+    withContext(Dispatchers.Main.immediate) {
+      callback(true)
+    }
+  }
+  return null
 }
 
 data class Item(val name: String)
