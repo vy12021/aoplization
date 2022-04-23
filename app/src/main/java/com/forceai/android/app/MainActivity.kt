@@ -18,10 +18,6 @@ import kotlin.coroutines.suspendCoroutine
 
 class MainActivity: AppCompatActivity() {
 
-  private val proxyAccompany by lazy {
-    MainActivity_ProxyAccompany(this)
-  }
-
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.main_activity)
@@ -44,8 +40,8 @@ class MainActivity: AppCompatActivity() {
   @Tag(TAG_LOGIN, tags = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   @Mark(TAG_LOGIN, marks = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
-//    Toast.makeText(this, item.name, Toast.LENGTH_SHORT).show()
-    return proxyAccompany.click2LikeItem(item = item, id = id, array = array, arg = arg, block = block)
+    Toast.makeText(this, "Hello Android", Toast.LENGTH_SHORT).show()
+    return null
   }
 
   /**

@@ -6,20 +6,13 @@ import com.forceai.android.aoplization.annotation.MainProxyHandler
 import com.forceai.android.aoplization.annotation.ProxyEntry
 import com.forceai.android.aoplization.annotation.ProxyHostMeta
 import com.forceai.android.aoplization.annotation.ProxyHostMethodMeta
-import com.google.devtools.ksp.KspExperimental
-import com.google.devtools.ksp.closestClassDeclaration
-import com.google.devtools.ksp.getAnnotationsByType
-import com.google.devtools.ksp.isPrivate
+import com.google.devtools.ksp.*
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
 import com.google.devtools.ksp.visitor.KSDefaultVisitor
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ksp.*
-import kotlin.reflect.KParameter
-import kotlin.reflect.full.declaredMemberFunctions
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.jvm.isAccessible
-import kotlin.reflect.jvm.javaType
+import org.jetbrains.annotations.Nullable
 
 @OptIn(KspExperimental::class)
 class AoplizationKSProcessor(
@@ -164,7 +157,15 @@ class AoplizationKSProcessor(
         if (container is KSClassDeclaration) {
           accompanyBuilder.primaryConstructor(
             PropertySpec.builder(
-              TARGET_FEILD_NAME, targetClassName, listOf(KModifier.PRIVATE)
+              TARGET_FEILD_NAME,
+              if (
+                container.origin == Origin.JAVA
+                || container.origin == Origin.JAVA_LIB
+                || container.origin == Origin.SYNTHETIC
+              ) {
+                targetClassName.copy(true)
+              } else targetClassName,
+              listOf(KModifier.PRIVATE)
             ).build()
           )
         }
@@ -179,7 +180,10 @@ class AoplizationKSProcessor(
   @OptIn(KotlinPoetKspPreview::class)
   private fun buildEntryAccompanyFunction(entryFunc: KSFunctionDeclaration) =
     buildEntryStub(entryFunc).also { funcBuilder ->
-      funcBuilder.addModifiers(KModifier.INTERNAL)
+      funcBuilder.addModifiers(KModifier.FINAL)
+      if (entryFunc.isInternal()) {
+        funcBuilder.addModifiers(KModifier.INTERNAL)
+      }
       funcBuilder.addCode(CodeBlock.of("""
         |${entryFunc.returnType?.let { "return " } ?: ""}%1T().invoke(%2T(
         |  %3L
@@ -190,7 +194,9 @@ class AoplizationKSProcessor(
         |    }
         |  }
         |})""".trimMargin(),
-        declaredHandlers[entryFunc.getAnnotationsByType(ProxyEntryClass).first().handlerKey]?.toClassName(),
+        declaredHandlers[
+            entryFunc.getAnnotationsByType(ProxyEntryClass).first().handlerKey
+        ]?.toClassName(),
         ProxyContextClassName,
         entryFunc.annotations.filter {
           it.isInternalUse().not()
@@ -242,12 +248,13 @@ class AoplizationKSProcessor(
       |  Class.forName(
       |    %3S
       |  ).getDeclaredMethod(
-      |    mirrorFunc.name, *mirrorFunc.parameterTypes
+      |    %4S, *mirrorFunc.parameterTypes
       |  )
-      |}?.also { it.isAccessible = true }?.invoke(%4L)""".trimMargin(),
+      |}?.also { it.isAccessible = true }?.invoke(%5L)""".trimMargin(),
       ProxyHostMethodMetaClass.asClassName(),
       entryFunc.signature,
       entryFunc.container.targetClassName.reflectionName(),
+      "_${entryFunc.simpleName.asString()}${SUFFIX_ACCOMPANY_FUNCTION}_",
       entryFunc.invokeArgList(false).let {
         when {
           entryFunc.isStatic() -> it
@@ -266,26 +273,6 @@ class AoplizationKSProcessor(
         mirrorFunc.name, *mirrorFunc.parameterTypes
       )
     }?.also { it.isAccessible = true }?.invoke("target", "p1", "p2", "p3")
-
-    Class.forName("AoplizationKSProvider").kotlin.declaredMemberFunctions.find {
-      it.name == entryFunc.simpleName.getShortName() && it.findAnnotation<ProxyHostMethodMeta>()?.let {
-        it.sign == entryFunc.signature
-      } == true && it.parameters.filter {
-        it.kind != KParameter.Kind.INSTANCE
-      }.let { kParameters ->
-        if (kParameters.isEmpty()) return@let true
-        if (kParameters.size != entryFunc.parameters.size) return@let false
-        val entryParameterTypeNames = arrayOf(
-          "", ""
-        )
-        kParameters.forEachIndexed { index, kParameter ->
-          if (kParameter.type.javaType.toString() != entryParameterTypeNames[index]) {
-            return@let false
-          }
-        }
-        return@let true
-      }
-    }?.also { it.isAccessible = true }?.call("target", "p1", "p2", "p3")
   }
 
   @OptIn(KotlinPoetKspPreview::class, DelicateKotlinPoetApi::class)
@@ -306,7 +293,11 @@ class AoplizationKSProcessor(
         )
       }
       entryFunc.returnType?.toTypeName()?.also { returnType ->
-        funcBuilder.returns(returnType)
+        funcBuilder.returns(
+          returnType.copy(
+            returnType.isNullable || entryFunc.isAnnotationPresent(Nullable::class)
+          )
+        )
       }
     }
 

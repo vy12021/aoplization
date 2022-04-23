@@ -1,9 +1,9 @@
 package com.forceai.android.plugin.aoplization
 
 import com.android.build.api.transform.*
-import javassist.ClassPath
-import javassist.ClassPool
-import javassist.CtClass
+import javassist.*
+import javassist.bytecode.AnnotationsAttribute
+import javassist.bytecode.annotation.StringMemberValue
 import org.gradle.api.Project
 import java.io.File
 import java.io.IOException
@@ -22,8 +22,11 @@ class MainTransformer(private val project: Project): Transform() {
     private const val PACKAGE_RUNTIME = "com.forceai.android.aoplization"
     private const val PACKAGE_ANNOTATION = "${PACKAGE_RUNTIME}.annotation"
     private const val RUNTIME = "${PACKAGE_RUNTIME}.Aoplization"
-    // 此包比较特殊
-    private const val ANNOTATION_META = "${PACKAGE_RUNTIME}.Meta"
+    private const val PROXY_ENTRY = "${PACKAGE_ANNOTATION}.ProxyEntry"
+    private const val HOST_META = "${PACKAGE_ANNOTATION}.ProxyHostMeta"
+    private const val HOST_META_CLAZZ = "clazz"
+    private const val METHOD_META = "${PACKAGE_ANNOTATION}.ProxyHostMethodMeta"
+    private const val METHOD_META_SIGN = "sign"
 
     /**
      * 需要指定包含的内部class包
@@ -116,9 +119,9 @@ class MainTransformer(private val project: Project): Transform() {
    * 检查扫描的class的文件节点路径是否在指定的范围
    */
   private fun checkClassEntry(classEntryName: String): Boolean {
-    if (null != INCLUDE_ENTRY.find { classEntryName.startsWith(it) }) {
+    /*if (null != INCLUDE_ENTRY.find { classEntryName.startsWith(it) }) {
       return true
-    }
+    }*/
     if (config.includePackages.isNotEmpty()) {
       return null != includePackages.find { classEntryName.startsWith(it) }
     }
@@ -126,9 +129,17 @@ class MainTransformer(private val project: Project): Transform() {
   }
 
   /**
-   * 注册类收集
+   * 从类资源路径转换为CtClass
    */
-  private val registers = mutableSetOf<CtClass>()
+  private fun getCtClassFromClassEntry(
+    classPool: ClassPool, classEntryName: String
+  ): CtClass {
+    val index = classEntryName.indexOf(".class")
+    if (index >= 0) {
+      return classPool.get(classEntryName.substring(0, index).replace("/", "."))
+    }
+    return classPool.get("java.lang.Object")
+  }
 
   private lateinit var outputProvider: TransformOutputProvider
   private lateinit var transformInputs: Collection<TransformInput>
@@ -137,8 +148,7 @@ class MainTransformer(private val project: Project): Transform() {
 
   override fun getName() = "ComponentScanner"
 
-  override fun getInputTypes(): MutableSet<QualifiedContent.ContentType>
-          = mutableSetOf(QualifiedContent.DefaultContentType.CLASSES)
+  override fun getInputTypes() = mutableSetOf(QualifiedContent.DefaultContentType.CLASSES)
 
   /**
    * 返回需要被处理的Project项目资源来源
@@ -148,7 +158,6 @@ class MainTransformer(private val project: Project): Transform() {
       add(QualifiedContent.Scope.PROJECT)
       if (!config.incremental) {
         add(QualifiedContent.Scope.SUB_PROJECTS)
-        add(QualifiedContent.Scope.EXTERNAL_LIBRARIES)
       }
     }
   }
@@ -158,8 +167,8 @@ class MainTransformer(private val project: Project): Transform() {
    */
   override fun getReferencedScopes(): MutableSet<in QualifiedContent.Scope> {
     return mutableSetOf<QualifiedContent.Scope>().apply {
+      add(QualifiedContent.Scope.EXTERNAL_LIBRARIES)
       if (config.incremental) {
-        add(QualifiedContent.Scope.EXTERNAL_LIBRARIES)
         add(QualifiedContent.Scope.SUB_PROJECTS)
       }
     }
@@ -188,37 +197,33 @@ class MainTransformer(private val project: Project): Transform() {
     classPaths.add(classPool.appendClassPath(androidJar))
     val effectInputs = mutableListOf<QualifiedContent>()
     // 收集必要的输入建立完成的classpath环境
-    val runtimeJarInput =
-            collectInputs(classPool, effectInputs, classPaths)
-            ?: throw RuntimeException("没有查找到工具：$RUNTIME")
+    collectInputs(classPool, effectInputs, classPaths)
     // 收集注册信息，并转换相关类
     transformClasses(classPool, effectInputs)
     // 验证注册信息正确性
     checkIfValid(classPool)
-    if (!config.incremental) {
-      // 注入自动化注册逻辑，并重新打包
-      runtimeJarInput.apply {
-        repackageJar(classPool, this, getOutput(this),
-                listOf(transformComponentizationJar(classPool, this)))
-      }
-    }
+
     // 释放类资源
     freeClassPoll(classPool, classPaths)
     println(">>>>>>>>>>>>>>>>>>Transformer总共耗时：" +
             "${(System.currentTimeMillis() - startTime) / 1000f}秒<<<<<<<<<<<<<<<<<")
   }
 
-  private fun getOutput(content: QualifiedContent) =
-          outputProvider.getContentLocation(content.name, content.contentTypes, content.scopes,
-          if (content is JarInput) Format.JAR else Format.DIRECTORY)
+  private fun getOutput(
+    content: QualifiedContent
+  ) = outputProvider.getContentLocation(
+    content.name, content.contentTypes, content.scopes,
+    if (content is JarInput) Format.JAR else Format.DIRECTORY
+  )
 
   /**
    * 收集输入的一些上下文信息
    */
-  private fun collectInputs(classPool: ClassPool,
-                            transInputs: MutableList<QualifiedContent>,
-                            classPaths: MutableList<ClassPath>): JarInput? {
-    var runtimeJarInput: JarInput? = null
+  private fun collectInputs(
+    classPool: ClassPool,
+    transInputs: MutableList<QualifiedContent>,
+    classPaths: MutableList<ClassPath>
+  ) {
     val scanInputs = fun (inputs: Collection<TransformInput>, readOnly: Boolean) {
       inputs.forEach input@{ input ->
         input.jarInputs.forEach jarInput@{ jarInput ->
@@ -226,9 +231,6 @@ class MainTransformer(private val project: Project): Transform() {
             return@jarInput
           }
           classPaths.add(classPool.appendClassPath(jarInput.file.absolutePath))
-          if (null == runtimeJarInput && null != classPool.getOrNull(RUNTIME)) {
-            runtimeJarInput = jarInput
-          }
           if (!readOnly) {
             transInputs.add(jarInput)
           }
@@ -243,15 +245,15 @@ class MainTransformer(private val project: Project): Transform() {
     }
     scanInputs(referenceInputs, true)
     scanInputs(transformInputs, false)
-    return runtimeJarInput
   }
 
   /**
    * 转换处理所有输入的classpath文件
    * @return 被修改和加载过的class记录，用于最后手动资源释放
    */
-  private fun transformClasses(classPool: ClassPool, inputs: List<QualifiedContent>)
-          : MutableList<CtClass> {
+  private fun transformClasses(
+    classPool: ClassPool, inputs: List<QualifiedContent>
+  ): MutableList<CtClass> {
     val classes = mutableListOf<CtClass>()
     inputs.forEach input@{input ->
       if (DEBUG) println("找到资源：${input.file.absolutePath}")
@@ -259,7 +261,7 @@ class MainTransformer(private val project: Project): Transform() {
         val jarOutput = getOutput(input)
         // 子模块的类包名称
         if (checkInputJar(input.file)) {
-          transformComponentsFromJar(classPool, input).apply {
+          transformFromJar(classPool, input).apply {
             classes.addAll(this)
             if (isNotEmpty()) {
               repackageJar(classPool, input, jarOutput, this)
@@ -276,7 +278,7 @@ class MainTransformer(private val project: Project): Transform() {
         if (input.file.name.toIntOrNull() != null
                 || input.file.name == "classes"
                 || input.file.parentFile.name == "kotlin-classes") {
-          transformComponentsFromDir(classPool, input).apply {
+          transformFromDir(classPool, input).apply {
             classes.addAll(this)
             forEach { clazz ->
               clazz.writeFile(dirOutput.absolutePath)
@@ -294,9 +296,11 @@ class MainTransformer(private val project: Project): Transform() {
    * @return 返回被修改过的类
    */
   @Throws(IOException::class, ClassNotFoundException::class)
-  private fun transformComponentsFromJar(classPool: ClassPool,
-                                         jarInput: JarInput): List<CtClass> {
-    println("collectComponentsFromJar: ${jarInput.file.absolutePath}")
+  private fun transformFromJar(
+    classPool: ClassPool,
+    jarInput: JarInput
+  ): List<CtClass> {
+    println("transformFromJar: ${jarInput.file.absolutePath}")
     val transformedClasses = mutableListOf<CtClass>()
     JarFile(jarInput.file).use {
       it.entries().toList().forEach { entry ->
@@ -313,9 +317,11 @@ class MainTransformer(private val project: Project): Transform() {
    * @return 返回被修改过的类
    */
   @Throws(IOException::class, ClassNotFoundException::class)
-  private fun transformComponentsFromDir(classPool: ClassPool,
-                                         dirInput: DirectoryInput): List<CtClass> {
-    println("transformComponentsFromDir: ${dirInput.file.absolutePath}")
+  private fun transformFromDir(
+    classPool: ClassPool,
+    dirInput: DirectoryInput
+  ): List<CtClass> {
+    println("transformFromDir: ${dirInput.file.absolutePath}")
     val transformedClasses = mutableListOf<CtClass>()
     getAllFiles(dirInput.file).forEach { classFile ->
       val classEntryName: String = classFile.absolutePath
@@ -331,69 +337,141 @@ class MainTransformer(private val project: Project): Transform() {
   /**
    * 从class索引节点转换
    */
-  private fun transformFromEntryName(classPool: ClassPool, classEntryName: String): CtClass? {
+  private fun transformFromEntryName(
+    classPool: ClassPool, classEntryName: String
+  ): CtClass? {
     if (classEntryName.startsWith("META-INF")
             || !classEntryName.endsWith(".class")
-            || !checkClassEntry(classEntryName)) {
+            /*|| !checkClassEntry(classEntryName)*/) {
       return null
     }
     if (DEBUG) println("\tclass file: $classEntryName")
-    collectComponentRegister(classPool, classEntryName)
-    return transformComponentInject(classPool, classEntryName)
-  }
-
-  /**
-   * 从类资源路径转换为CtClass
-   */
-  private fun getCtClassFromClassEntry(classPool: ClassPool, classEntryName: String): CtClass {
-    val index = classEntryName.indexOf(".class")
-    if (index >= 0) {
-      return classPool.get(classEntryName.substring(0, index).replace("/", "."))
+    return transformInject(classPool, classEntryName)?.also {
+      if (DEBUG) println("\tinject class: ${it.name}")
     }
-    return classPool.get("java.lang.Object")
-  }
-
-  /**
-   * 收集组件注册器
-   */
-  private fun collectComponentRegister(classPool: ClassPool, classEntryName: String) {
-    if (!classEntryName.replace("/", ".").startsWith(PACKAGE_RUNTIME)) {
-      return
-    }
-    val ctClass = getCtClassFromClassEntry(classPool, classEntryName)
-    if (ctClass.packageName != PACKAGE_RUNTIME) {
-      return
-    }
-    if (!ctClass.simpleName.endsWith("_Register")) {
-      return
-    }
-    registers.add(ctClass)
   }
 
   /**
    * 处理组件注入
    * @return 返回被修改过的类
    */
-  private fun transformComponentInject(classPool: ClassPool, classEntryName: String): CtClass? {
-    val ctClass = getCtClassFromClassEntry(classPool, classEntryName)
-    return null
+  private fun transformInject(
+    classPool: ClassPool, classEntryName: String
+  ): CtClass? {
+    return classEntryName.takeIf { !it.contains("_ProxyAccompany") }?.let { className ->
+      getCtClassFromClassEntry(classPool, className).let { hostClass ->
+        hostClass.name.replace('$', '_').plus("_ProxyAccompany").let {
+          try { classPool[it] } catch (ignored: NotFoundException) {
+            System.err.println(ignored.localizedMessage)
+            null
+          }
+        }?.takeIf { it.hasAnnotation(HOST_META) }?.let { accompanyClass ->
+          (accompanyClass.classFile2.getAttribute(
+            AnnotationsAttribute.visibleTag
+          ) as? AnnotationsAttribute)?.let {
+            (it.getAnnotation(HOST_META).getMemberValue(HOST_META_CLAZZ) as StringMemberValue).value
+          }?.takeIf { it == hostClass.name }?.let {
+            val injectAccompanyField = fun (static: Boolean): String {
+              val fieldName = if (static) {
+                "sProxyAccompanyOf${accompanyClass.simpleName}"
+              } else "proxyAccompanyOf${accompanyClass.simpleName}"
+              try {
+                hostClass.getField(fieldName)
+                return fieldName
+              } catch (ignored: NotFoundException) {}
+              val hasDefaultConstructor = try {
+                accompanyClass.getDeclaredConstructor(null) != null
+              } catch (e: NotFoundException) { false }
+              hostClass.addField(
+                CtField(accompanyClass, fieldName, hostClass).apply {
+                  modifiers = Modifier.PRIVATE or Modifier.FINAL or (if (static) Modifier.STATIC else 0)
+                },
+                CtField.Initializer.byExpr(
+                  "new ${accompanyClass.name}(" +
+                      (if (static) {if (hasDefaultConstructor) "" else "null"} else "this") +
+                      ")"
+                )
+              )
+              return fieldName
+            }
+            hostClass.declaredMethods.filter { it.hasAnnotation(PROXY_ENTRY) }.forEach { method ->
+              val staticMethod = (method.modifiers and Modifier.STATIC) != 0
+              if (staticMethod && method.hasAnnotation(JvmStatic::class.java)) {
+                // abnormal case, appear when the kotlin function of jvmStatic annotated
+                // in object class or companion object, it's a grammar sugar, so just skip
+                return@forEach
+              }
+              val fieldName = injectAccompanyField(staticMethod)
+              hostClass.addMethod(
+                CtNewMethod.copy(method, hostClass, null).apply { name = "_${name}Proxy_" }
+              )
+              method.setBody(
+                "{${if (method.returnType != null) "return " else ""}$fieldName.${method.name}($$);}")
+            }
+            hostClass.also { it.freeze() }
+          }
+        }
+      }
+    }
   }
 
   /**
-   * 转换Componentization所属jar资源
+   * 处理组件注入
+   * @return 返回被修改过的类
    */
-  private fun transformComponentizationJar(classPool: ClassPool, jarInput: JarInput): CtClass {
-    println("transformComponentizationJar: ${jarInput.file.absolutePath}")
-    val Componentization = classPool.get(RUNTIME)
-    val registerBody = StringBuilder("{\n")
-    registers.forEach {
-      registerBody.append("register(${it.name}.class);\n")
-      println("\tinsert ComponentRegister: ${it.name}.class")
+  private fun transformInject2(
+    classPool: ClassPool, classEntryName: String
+  ): CtClass? {
+    return getCtClassFromClassEntry(classPool, classEntryName).takeIf {
+      it.hasAnnotation(HOST_META)
+    }?.let { accompanyClass ->
+      (accompanyClass.classFile2.getAttribute(
+        AnnotationsAttribute.visibleTag
+      ) as? AnnotationsAttribute)?.let {
+        (it.getAnnotation(HOST_META).getMemberValue(HOST_META_CLAZZ) as StringMemberValue).value
+      }?.let { hostClassName ->
+        classPool[hostClassName].also { hostClass ->
+          val injectAccompanyField = fun (static: Boolean): String {
+            val fieldName = if (static) {
+              "sProxyAccompanyOf${accompanyClass.simpleName}"
+            } else "proxyAccompanyOf${accompanyClass.simpleName}"
+            try {
+              hostClass.getField(fieldName)
+              return fieldName
+            } catch (ignored: NotFoundException) {}
+            val hasDefaultConstructor = try {
+              accompanyClass.getDeclaredConstructor(null) != null
+            } catch (e: NotFoundException) { false }
+            hostClass.addField(
+              CtField(accompanyClass, fieldName, hostClass).apply {
+                modifiers = Modifier.PRIVATE or Modifier.FINAL or (if (static) Modifier.STATIC else 0)
+              },
+              CtField.Initializer.byExpr(
+                "new ${accompanyClass.name}(" +
+                  (if (static) {if (hasDefaultConstructor) "" else "null"} else "this") +
+                  ")"
+              )
+            )
+            return fieldName
+          }
+          hostClass.declaredMethods.filter { it.hasAnnotation(PROXY_ENTRY) }.forEach { method ->
+            val staticMethod = (method.modifiers and Modifier.STATIC) != 0
+            if (staticMethod && method.hasAnnotation(JvmStatic::class.java)) {
+              // abnormal case, appear when the kotlin function of jvmStatic annotated
+              // in object class or companion object, it's a grammar sugar, so just skip
+              return@forEach
+            }
+            val fieldName = injectAccompanyField(staticMethod)
+            hostClass.addMethod(
+              CtNewMethod.copy(method, hostClass, null).apply { name = "_${name}Proxy_" }
+            )
+            method.setBody(
+              "{${if (method.returnType != null) "return " else ""}$fieldName.${method.name}($$);}")
+          }
+          hostClass.freeze()
+        }
+      }
     }
-    registerBody.append("}")
-    (Componentization.classInitializer?: Componentization.makeClassInitializer())
-        .insertAfter(registerBody.toString())
-    return Componentization
   }
 
   /**
@@ -401,9 +479,11 @@ class MainTransformer(private val project: Project): Transform() {
    * @param jarInput  输入的jar包
    * @param transformedClasses jar包中被转换过的class
    */
-  private fun repackageJar(classPool: ClassPool,
-                           jarInput: JarInput, jarOutput: File,
-                           transformedClasses: List<CtClass>) {
+  private fun repackageJar(
+    classPool: ClassPool,
+    jarInput: JarInput, jarOutput: File,
+    transformedClasses: List<CtClass>
+  ) {
     println("repackageJar: \n${jarInput.file.absolutePath} \n--> ${jarOutput.absolutePath}")
     JarFile(jarInput.file).use {jarFile ->
       JarOutputStream(jarOutput.outputStream()).use {jarOs ->

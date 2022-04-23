@@ -31,14 +31,14 @@ buildscript {
 
 apply plugin: 'aoplization'
 
-//aoplization {
-//  debugMode = true
-//  incremental = false
-//  includeModules = ['^libra.*', '^viewpager.*']
-//  includeJars = ['clase']
-//  includePackages = ['com.bhb.android']
-//  excludePackages = ['kotlin', 'kotlinx', 'android', 'androidx', 'org.jetbrains']
-//}
+aoplization {
+  debugMode = true
+  incremental = false
+  includeModules = ['^libra.*', '^viewpager.*']
+  includeJars = ['clase']
+  includePackages = ['com.bhb.android']
+  excludePackages = ['kotlin', 'kotlinx', 'android', 'androidx', 'org.jetbrains']
+}
 
 ext {
 

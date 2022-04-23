@@ -3,7 +3,6 @@
     package="com.forceai.android.app">
 
     <application
-        android:name="com.forceai.android.app.TheApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"

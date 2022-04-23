@@ -10,7 +10,7 @@ class ClassInFile {
 
   companion object {
 
-    @JvmStatic
+    //@JvmStatic
     @ProxyEntry("2")
     private fun companionFunction(string: String): Any? = null
 

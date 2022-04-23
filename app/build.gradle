@@ -19,7 +19,7 @@ android {
   }
 
   sourceSets {
-    main.kotlin.srcDirs += 'build/generated/ksp'
+    main.kotlin.srcDirs += 'build/generated/ksp/BetaDebug/kotlin'
   }
 
 }
