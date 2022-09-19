@@ -177,8 +177,8 @@ class MainTransformer(private val project: Project): Transform() {
   override fun isIncremental() = config.incremental
 
   override fun transform(transformInvocation: TransformInvocation) {
-    println(">>>>>>>>>>>>>>>>>>>>>>启动Transformer<<<<<<<<<<<<<<<<<<<<<<<")
-    println("插件配置：$config")
+    println(">>>>>>>>>>>>>>>>>>>>>>Start Transform<<<<<<<<<<<<<<<<<<<<<<<")
+    println("Configuration：$config")
     val startTime = System.currentTimeMillis()
     super.transform(transformInvocation)
 
@@ -205,7 +205,7 @@ class MainTransformer(private val project: Project): Transform() {
 
     // 释放类资源
     freeClassPoll(classPool, classPaths)
-    println(">>>>>>>>>>>>>>>>>>Transformer总共耗时：" +
+    println(">>>>>>>>>>>>>>>>>>Transformer total cost：" +
             "${(System.currentTimeMillis() - startTime) / 1000f}秒<<<<<<<<<<<<<<<<<")
   }
 

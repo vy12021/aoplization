@@ -1,6 +1,6 @@
 apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
+apply plugin: 'kotlin-android'
 apply plugin: 'com.google.devtools.ksp'
 
 ksp {
@@ -27,9 +27,7 @@ android {
 dependencies {
   implementation project(':annotation')
   implementation project(':runtime')
-  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.1"
-  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.1'
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:${kotlinx_coroutine_version}"
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:${kotlinx_coroutine_version}"
   ksp project(":compiler")
-//  annotationProcessor project(':compiler')
-//  kapt project(':compiler')
 }

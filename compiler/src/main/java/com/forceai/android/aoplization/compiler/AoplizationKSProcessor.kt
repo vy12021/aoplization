@@ -11,7 +11,10 @@ import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
 import com.google.devtools.ksp.visitor.KSDefaultVisitor
 import com.squareup.kotlinpoet.*
-import com.squareup.kotlinpoet.ksp.*
+import com.squareup.kotlinpoet.ksp.toAnnotationSpec
+import com.squareup.kotlinpoet.ksp.toClassName
+import com.squareup.kotlinpoet.ksp.toTypeName
+import com.squareup.kotlinpoet.ksp.writeTo
 import org.jetbrains.annotations.Nullable
 
 @OptIn(KspExperimental::class)
@@ -100,7 +103,7 @@ class AoplizationKSProcessor(
         logger.error("The ${annotatedElement.qualifiedName?.asString()} has the same mark " +
             "with ${previousHandler.qualifiedName?.asString()}", annotatedElement)
       }
-      if (annotatedElement.primaryConstructor?.parameters?.isNullOrEmpty() == false) {
+      if (annotatedElement.primaryConstructor?.parameters?.isEmpty() == false) {
         logger.error("The ProxyHandler of ${annotatedElement.qualifiedName?.asString()}" +
                 " must has default constructor", annotatedElement)
       }
@@ -139,9 +142,11 @@ class AoplizationKSProcessor(
     return unhandledAnnotations
   }
 
-  @OptIn(KotlinPoetKspPreview::class, DelicateKotlinPoetApi::class)
-  private fun generateProxyAccompanyClass(container: KSDeclarationContainer,
-                                          entries: List<KSFunctionDeclaration>) {
+  @OptIn(DelicateKotlinPoetApi::class)
+  private fun generateProxyAccompanyClass(
+    container: KSDeclarationContainer,
+    entries: List<KSFunctionDeclaration>
+  ) {
     val targetClassName = container.targetClassName
     FileSpec.builder(
       targetClassName.packageName,
@@ -177,7 +182,6 @@ class AoplizationKSProcessor(
     }.build().writeTo(generator, false)
   }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private fun buildEntryAccompanyFunction(entryFunc: KSFunctionDeclaration) =
     buildEntryStub(entryFunc).also { funcBuilder ->
       funcBuilder.addModifiers(KModifier.FINAL)
@@ -239,7 +243,6 @@ class AoplizationKSProcessor(
       funcBuilder.addCode(buildEntryProxyCodeBlock(entryFunc))
     }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private fun buildEntryProxyCodeBlock(entryFunc: KSFunctionDeclaration) = let {
     CodeBlock.of("""
       |${entryFunc.returnType?.let { "return " } ?: ""}this.javaClass.declaredMethods.find·{
@@ -264,7 +267,6 @@ class AoplizationKSProcessor(
     )
   }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private fun testReflection(entryFunc: KSFunctionDeclaration) {
     this.javaClass.declaredMethods.find {
       it.getAnnotation(ProxyHostMethodMeta::class.java).sign == entryFunc.signature
@@ -275,7 +277,7 @@ class AoplizationKSProcessor(
     }?.also { it.isAccessible = true }?.invoke("target", "p1", "p2", "p3")
   }
 
-  @OptIn(KotlinPoetKspPreview::class, DelicateKotlinPoetApi::class)
+  @OptIn(DelicateKotlinPoetApi::class)
   private fun buildEntryStub(entryFunc: KSFunctionDeclaration,
                              name: String = entryFunc.simpleName.getShortName()) =
     FunSpec.builder(name).also { funcBuilder ->
@@ -314,7 +316,6 @@ class AoplizationKSProcessor(
       }
     }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private val KSDeclarationContainer.targetClassName
     get() = when(this) {
       is KSFile -> {
