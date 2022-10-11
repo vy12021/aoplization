@@ -10,35 +10,35 @@ class ClassInFile {
 
   companion object {
 
-    //@JvmStatic
-    @ProxyEntry("2")
+    @JvmStatic
+    @ProxyEntry()
     private fun companionFunction(string: String): Any? = null
 
   }
 
-  @ProxyEntry("2")
+  @ProxyEntry()
   private fun memberFunction(arg: Any): Any? = ObjectClass.objectFunction(arg)
 
   class AInClass {
 
     companion object {
 
-      @ProxyEntry("2")
+      @ProxyEntry()
       private fun innerCompanionFunc(): Any? = null
 
     }
 
-    @ProxyEntry("2")
+    @ProxyEntry()
     private fun innerMemberFunc(): Any? = null
 
     object BObjectInA {
 
-      @ProxyEntry("2")
+      @ProxyEntry()
       private fun func(): Any? = null
 
       class CInB {
 
-        @ProxyEntry("2")
+        @ProxyEntry()
         private fun func(): Any? = null
 
       }
@@ -53,16 +53,16 @@ object ObjectClass {
 
   private val aaa: String = "222"
 
-  @ProxyEntry("2")
+  @ProxyEntry()
   fun objectFunction(arg: Any): Any? = aaa
 
 }
 
-@ProxyEntry("2")
-private fun topLevelFunction(arg: Any): Any? = null
+@ProxyEntry
+private fun topLevelFunction(arg: Any): String? = null
 
-@MainProxyHandler("2")
-class DefaultHandler: ProxyHandler() {
+@MainProxyHandler
+class DefaultHandler: ProxyHandler {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
     return when (context.annotations.firstOrNull()) {
       else -> null

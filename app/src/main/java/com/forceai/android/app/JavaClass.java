@@ -12,19 +12,19 @@ import org.jetbrains.annotations.Nullable;
 public class JavaClass {
 
   @Nullable
-  @ProxyEntry(handlerKey = "3")
+  @ProxyEntry()
   private Object memberFun(String[] args) {
     return "";
   }
 
   @Nullable
-  @ProxyEntry(handlerKey = "3")
+  @ProxyEntry()
   private static Object staticFuc(String arg) {
     return null;
   }
 
-  @MainProxyHandler(mark = "3")
-  public static class DefaultHandler extends ProxyHandler {
+  @MainProxyHandler()
+  public static class DefaultHandler implements ProxyHandler {
 
     @Nullable
     @Override

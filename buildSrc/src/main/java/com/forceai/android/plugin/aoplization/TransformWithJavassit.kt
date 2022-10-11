@@ -16,17 +16,17 @@ import java.util.zip.ZipEntry
  * Android插件提供的资源转换器
  * Created by Tesla on 2020/09/30.
  */
-class MainTransformer(private val project: Project): Transform() {
+class TransformWithJavassit(private val project: Project): Transform() {
 
   companion object {
     private const val PACKAGE_RUNTIME = "com.forceai.android.aoplization"
     private const val PACKAGE_ANNOTATION = "${PACKAGE_RUNTIME}.annotation"
-    private const val RUNTIME = "${PACKAGE_RUNTIME}.Aoplization"
     private const val PROXY_ENTRY = "${PACKAGE_ANNOTATION}.ProxyEntry"
     private const val HOST_META = "${PACKAGE_ANNOTATION}.ProxyHostMeta"
     private const val HOST_META_CLAZZ = "clazz"
     private const val METHOD_META = "${PACKAGE_ANNOTATION}.ProxyHostMethodMeta"
     private const val METHOD_META_SIGN = "sign"
+    private const val SUFFIX_ACCOMPANY = "_ProxyAccompany"
 
     /**
      * 需要指定包含的内部class包
@@ -358,120 +358,60 @@ class MainTransformer(private val project: Project): Transform() {
   private fun transformInject(
     classPool: ClassPool, classEntryName: String
   ): CtClass? {
-    return classEntryName.takeIf { !it.contains("_ProxyAccompany") }?.let { className ->
-      getCtClassFromClassEntry(classPool, className).let { hostClass ->
-        hostClass.name.replace('$', '_').plus("_ProxyAccompany").let {
-          try { classPool[it] } catch (ignored: NotFoundException) {
-            System.err.println(ignored.localizedMessage)
-            null
-          }
-        }?.takeIf { it.hasAnnotation(HOST_META) }?.let { accompanyClass ->
-          (accompanyClass.classFile2.getAttribute(
-            AnnotationsAttribute.visibleTag
-          ) as? AnnotationsAttribute)?.let {
-            (it.getAnnotation(HOST_META).getMemberValue(HOST_META_CLAZZ) as StringMemberValue).value
-          }?.takeIf { it == hostClass.name }?.let {
-            val injectAccompanyField = fun (static: Boolean): String {
-              val fieldName = if (static) {
-                "sProxyAccompanyOf${accompanyClass.simpleName}"
-              } else "proxyAccompanyOf${accompanyClass.simpleName}"
-              try {
-                hostClass.getField(fieldName)
-                return fieldName
-              } catch (ignored: NotFoundException) {}
-              val hasDefaultConstructor = try {
-                accompanyClass.getDeclaredConstructor(null) != null
-              } catch (e: NotFoundException) { false }
-              hostClass.addField(
-                CtField(accompanyClass, fieldName, hostClass).apply {
-                  modifiers = Modifier.PRIVATE or Modifier.FINAL or (if (static) Modifier.STATIC else 0)
-                },
-                CtField.Initializer.byExpr(
-                  "new ${accompanyClass.name}(" +
-                      (if (static) {if (hasDefaultConstructor) "" else "null"} else "this") +
-                      ")"
-                )
-              )
-              return fieldName
-            }
-            hostClass.declaredMethods.filter { it.hasAnnotation(PROXY_ENTRY) }.forEach { method ->
-              val staticMethod = (method.modifiers and Modifier.STATIC) != 0
-              if (staticMethod && method.hasAnnotation(JvmStatic::class.java)) {
-                // abnormal case, appear when the kotlin function of jvmStatic annotated
-                // in object class or companion object, it's a grammar sugar, so just skip
-                return@forEach
-              }
-              val fieldName = injectAccompanyField(staticMethod)
-              hostClass.addMethod(
-                CtNewMethod.copy(method, hostClass, null).apply { name = "_${name}Proxy_" }
-              )
-              method.setBody(
-                "{${if (method.returnType != null) "return " else ""}$fieldName.${method.name}($$);}")
-            }
-            hostClass.also { it.freeze() }
-          }
-        }
-      }
+    if (classEntryName.contains(SUFFIX_ACCOMPANY)) {
+      return null
     }
-  }
-
-  /**
-   * 处理组件注入
-   * @return 返回被修改过的类
-   */
-  private fun transformInject2(
-    classPool: ClassPool, classEntryName: String
-  ): CtClass? {
-    return getCtClassFromClassEntry(classPool, classEntryName).takeIf {
-      it.hasAnnotation(HOST_META)
-    }?.let { accompanyClass ->
-      (accompanyClass.classFile2.getAttribute(
-        AnnotationsAttribute.visibleTag
-      ) as? AnnotationsAttribute)?.let {
-        (it.getAnnotation(HOST_META).getMemberValue(HOST_META_CLAZZ) as StringMemberValue).value
-      }?.let { hostClassName ->
-        classPool[hostClassName].also { hostClass ->
-          val injectAccompanyField = fun (static: Boolean): String {
-            val fieldName = if (static) {
-              "sProxyAccompanyOf${accompanyClass.simpleName}"
-            } else "proxyAccompanyOf${accompanyClass.simpleName}"
-            try {
-              hostClass.getField(fieldName)
-              return fieldName
-            } catch (ignored: NotFoundException) {}
-            val hasDefaultConstructor = try {
-              accompanyClass.getDeclaredConstructor(null) != null
-            } catch (e: NotFoundException) { false }
-            hostClass.addField(
-              CtField(accompanyClass, fieldName, hostClass).apply {
-                modifiers = Modifier.PRIVATE or Modifier.FINAL or (if (static) Modifier.STATIC else 0)
-              },
-              CtField.Initializer.byExpr(
-                "new ${accompanyClass.name}(" +
-                  (if (static) {if (hasDefaultConstructor) "" else "null"} else "this") +
-                  ")"
-              )
-            )
-            return fieldName
-          }
-          hostClass.declaredMethods.filter { it.hasAnnotation(PROXY_ENTRY) }.forEach { method ->
-            val staticMethod = (method.modifiers and Modifier.STATIC) != 0
-            if (staticMethod && method.hasAnnotation(JvmStatic::class.java)) {
-              // abnormal case, appear when the kotlin function of jvmStatic annotated
-              // in object class or companion object, it's a grammar sugar, so just skip
-              return@forEach
-            }
-            val fieldName = injectAccompanyField(staticMethod)
-            hostClass.addMethod(
-              CtNewMethod.copy(method, hostClass, null).apply { name = "_${name}Proxy_" }
-            )
-            method.setBody(
-              "{${if (method.returnType != null) "return " else ""}$fieldName.${method.name}($$);}")
-          }
-          hostClass.freeze()
-        }
+    val hostClass = getCtClassFromClassEntry(classPool, classEntryName)
+    val accompanyClass = hostClass.name.replace('$', '_').plus(SUFFIX_ACCOMPANY).let {
+      try { classPool[it] } catch (ignored: NotFoundException) {
+        null
       }
+    } ?: return null
+    check(accompanyClass.hasAnnotation(HOST_META))
+    val hostClassName = (accompanyClass.classFile2.getAttribute(
+      AnnotationsAttribute.visibleTag
+    ) as? AnnotationsAttribute)?.let {
+      (it.getAnnotation(HOST_META).getMemberValue(HOST_META_CLAZZ) as StringMemberValue).value
     }
+    check(hostClass.name == hostClassName)
+    val injectAccompanyField = fun (static: Boolean): String {
+      val fieldName = if (static) {
+        "s${accompanyClass.simpleName}"
+      } else accompanyClass.simpleName.replaceFirstChar { it.lowercaseChar() }
+      try {
+        hostClass.getField(fieldName)
+        return fieldName
+      } catch (ignored: NotFoundException) {}
+      val hasDefaultConstructor = try {
+        accompanyClass.getDeclaredConstructor(null) != null
+      } catch (e: NotFoundException) { false }
+      hostClass.addField(
+        CtField(accompanyClass, fieldName, hostClass).apply {
+          modifiers = Modifier.PRIVATE or Modifier.FINAL or (if (static) Modifier.STATIC else 0)
+        },
+        CtField.Initializer.byExpr(
+          "new ${accompanyClass.name}(" +
+              (if (static) {if (hasDefaultConstructor) "" else "null"} else "this") +
+              ")"
+        )
+      )
+      return fieldName
+    }
+    hostClass.declaredMethods.filter { it.hasAnnotation(PROXY_ENTRY) }.forEach { method ->
+      val staticMethod = (method.modifiers and Modifier.STATIC) != 0
+      if (staticMethod && method.hasAnnotation(JvmStatic::class.java)) {
+        // abnormal case, appear when the kotlin function of jvmStatic annotated
+        // in object class or companion object, it's a grammar sugar, so just skip
+        return@forEach
+      }
+      val fieldName = injectAccompanyField(staticMethod)
+      hostClass.addMethod(
+        CtNewMethod.copy(method, hostClass, null).apply { name = "_${name}Proxy_" }
+      )
+      method.setBody(
+        "{${if (method.returnType != null) "return " else ""}$fieldName.${method.name}($$);}")
+    }
+    return hostClass.also { it.freeze() }
   }
 
   /**

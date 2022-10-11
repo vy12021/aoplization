@@ -9,6 +9,7 @@ import com.forceai.android.aoplization.ProxyContext
 import com.forceai.android.aoplization.ProxyContinuation
 import com.forceai.android.aoplization.ProxyHandler
 import com.forceai.android.aoplization.annotation.MainProxyHandler
+import com.forceai.android.aoplization.annotation.None
 import com.forceai.android.aoplization.annotation.ProxyEntry
 import kotlinx.coroutines.*
 import kotlin.coroutines.resume
@@ -36,11 +37,11 @@ class MainActivity: AppCompatActivity() {
   /**
    * For normal function
    */
-  @ProxyEntry("DefaultHandler2")
+  @ProxyEntry(DefaultHandler2::class)
   @Tag(TAG_LOGIN, tags = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
   @Mark(TAG_LOGIN, marks = ["aaaaaaaaaaa", "bbbbbbbbbb", "ccccccccccccc", "ddddddddddddd", "eeeeeeeeeee"])
-  private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String): Any? {
-    return block.invoke(item)
+  private fun click2LikeItem(item: Item, @StringRes id: Int = 0, array: Array<Item> = arrayOf(), vararg arg: String = arrayOf(), block: (Item) -> String) {
+    block.invoke(item)
   }
 
   /**
@@ -164,8 +165,8 @@ annotation class ProxyHostMethodMeta(
   val params: Array<String>
 )
 
-@MainProxyHandler("DefaultHandler2")
-class DefaultHandler2: ProxyHandler() {
+@MainProxyHandler()
+class DefaultHandler2: ProxyHandler {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
     return when (context.annotations.firstOrNull()) {
       is Tag -> {
@@ -181,7 +182,7 @@ class DefaultHandler2: ProxyHandler() {
 }
 
 //@MainProxyHandler
-class MainDefaultHandler: ProxyHandler() {
+class MainDefaultHandler: ProxyHandler {
   override fun invoke(context: ProxyContext, continuation: ProxyContinuation): Any? {
     return when (context.annotations.firstOrNull()) {
       is Tag -> {
