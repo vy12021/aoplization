@@ -1,9 +1,4 @@
 buildscript {
-  ext {
-    agpVersion = '7.2.1'
-    kotlinVersion = '1.6.21'
-    kspVersion = '1.6.21-1.0.5'
-  }
   repositories {
     maven {
       url mavenRepository
@@ -23,10 +18,10 @@ buildscript {
     maven { url 'https://maven.aliyun.com/repository/google' }
   }
   dependencies {
-    classpath "com.android.tools.build:gradle:$agpVersion"
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+    classpath "com.android.tools.build:gradle:$android_version"
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlin_version}"
+    classpath "com.google.devtools.ksp:symbol-processing-gradle-plugin:${kotlin_version}-${ksp_version}"
     classpath "de.jjohannes.gradle:extra-java-module-info:0.11"
-    classpath "com.google.devtools.ksp:symbol-processing-gradle-plugin:$kspVersion"
   }
 }
 
@@ -43,13 +38,10 @@ aoplization {
 
 ext {
 
-  agpVersion = '7.2.1'
-  kotlinVersion = '1.6.21'
-
   minSdkVersion = 19
   targetSdkVersion = 31
-  compileSdkVersion = 32
-  buildToolsVersion = '32.0.0'
+  compileSdkVersion = 33
+  buildToolsVersion = '33.0.0'
 
   applicationId = "com.bhb.android.aoplization"
   versionName = "1.0.0"

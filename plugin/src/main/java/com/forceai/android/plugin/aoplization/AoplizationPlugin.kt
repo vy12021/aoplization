@@ -36,7 +36,7 @@ class AoplizationPlugin: Plugin<Project> {
   private val runtimeConfig = "${Group}:runtime:${Version}"
 
   override fun apply(project: Project) {
-    println(">>>>>>>>>>>>>>>>>>>>>>注册插件Aoplization[${project.name}]<<<<<<<<<<<<<<<<<<<<<<")
+    println(">>>>>>>>>>>>>>>>>>>>>>register plugin Aoplization[${project.name}]<<<<<<<<<<<<<<<<<<<<<<")
     config = project.getConfiguration()
 
     if (project.isRootProject()) {
@@ -91,7 +91,7 @@ class AoplizationPlugin: Plugin<Project> {
    */
   private fun injectCompileOptions(project: Project) {
     val options = mapOf(
-            OPTION_DEBUG_MODE to config.debugMode.toString()
+      OPTION_DEBUG_MODE to config.debugMode.toString()
     )
     if (config.debugMode) {
       println("Project[${project.name}].injectCompileOptions--->${options}")

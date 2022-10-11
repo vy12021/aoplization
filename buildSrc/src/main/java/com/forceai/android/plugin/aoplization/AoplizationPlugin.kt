@@ -38,7 +38,7 @@ class AoplizationPlugin: Plugin<Project> {
   private val KotlinReflection = "org.jetbrains.kotlin:kotlin-reflect:1.6.21"
 
   override fun apply(project: Project) {
-    println(">>>>>>>>>>>>>>>>>>>>>>注册插件Aoplization[${project.name}]<<<<<<<<<<<<<<<<<<<<<<")
+    println(">>>>>>>>>>>>>>>>>>>>>>register plugin Aoplization[${project.name}]<<<<<<<<<<<<<<<<<<<<<<")
     config = project.getConfiguration()
 
     if (project.isRootProject()) {
@@ -152,7 +152,7 @@ internal fun Task.invalidate() {
 internal fun Project.invalidateCache(vararg taskNames: String) {
   gradle.taskGraph.whenReady {
     tasks.forEach { task ->
-      if (taskNames.isNullOrEmpty()) {
+      if (taskNames.isEmpty()) {
         task.invalidate()
       } else {
         taskNames.find { it == task.name || it.toRegex().matches(task.name) }?.let {

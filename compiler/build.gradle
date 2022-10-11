@@ -10,15 +10,13 @@ java {
 
 extraJavaModuleInfo {
   failOnMissingModuleInfo.set(false)
-  module('auto-common-1.2.1.jar', 'com.google.auto.common', '1.2.1') {
-    exports('com.google.auto.common')
-    requires('jdk.compiler')
+  module("kotlinpoet-${kotlinpoet_ksp_version}.jar", 'com.squareup.kotlinpoet', kotlinpoet_ksp_version) {
+    requires('kotlin.stdlib')
   }
-  module('incap-0.3.jar', 'net.ltgt.gradle.incap', '0.3') {
-    exports('net.ltgt.gradle.incap')
+  module("kotlinpoet-ksp-${kotlinpoet_ksp_version}.jar", 'com.squareup.kotlinpoet.ksp', kotlinpoet_ksp_version) {
+    requires('kotlin.stdlib')
   }
-  module('incap-processor-0.3.jar', 'net.ltgt.gradle.incap.processor', '0.3')
-  module("symbol-processing-api-${kspVersion}.jar", 'symbol.processing.api', kspVersion) {
+  module("symbol-processing-api-${kotlin_version}-${ksp_version}.jar", 'symbol.processing.api', "${kotlin_version}-${ksp_version}") {
     requires('kotlin.stdlib')
   }
 }
@@ -34,17 +32,11 @@ compileJava {
 
 dependencies {
   implementation project(':annotation')
-  implementation 'com.squareup:javapoet:1.13.0'
-  implementation 'com.squareup:kotlinpoet-ksp:1.11.0'
-  implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
-  implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
-  implementation 'com.google.auto:auto-common:1.2.1'
-  implementation 'org.jetbrains:annotations:23.0.0'
-  compileOnly 'com.google.auto.service:auto-service:1.0.1'
-  kapt 'com.google.auto.service:auto-service:1.0.1'
+  implementation "com.squareup:javapoet:${javapoet_version}"
+  implementation "com.squareup:kotlinpoet-ksp:${kotlinpoet_ksp_version}"
+  implementation "org.jetbrains.kotlin:kotlin-reflect:${kotlin_version}"
+  implementation "com.google.devtools.ksp:symbol-processing-api:${kotlin_version}-${ksp_version}"
 
-  implementation 'net.ltgt.gradle.incap:incap:0.3'
-  kapt 'net.ltgt.gradle.incap:incap-processor:0.3'
 }
 
 

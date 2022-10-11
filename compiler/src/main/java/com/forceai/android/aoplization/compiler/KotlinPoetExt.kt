@@ -4,7 +4,6 @@ package com.forceai.android.aoplization.compiler
 
 import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
-import com.squareup.kotlinpoet.ksp.KotlinPoetKspPreview
 import com.squareup.kotlinpoet.ksp.toAnnotationSpec
 import com.squareup.kotlinpoet.ksp.toClassName
 
@@ -20,7 +19,6 @@ internal fun TypeSpec.Builder.primaryConstructor(vararg properties: PropertySpec
     .addProperties(propertySpecs)
 }
 
-@KotlinPoetKspPreview
 fun addValueToBlock(value: Any, member: CodeBlock.Builder) {
   when (value) {
     is List<*> -> {

@@ -168,7 +168,6 @@ class AoplizationKSProcessor(
     }.build().writeTo(generator, false)
   }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private fun buildEntryAccompanyFunction(handler: String, entryFunc: KSFunctionDeclaration) =
     buildEntryStub(entryFunc).also { funcBuilder ->
       funcBuilder.addModifiers(KModifier.FINAL)
@@ -229,7 +228,6 @@ class AoplizationKSProcessor(
       funcBuilder.addCode(buildEntryProxyCodeBlock(entryFunc))
     }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private fun buildEntryProxyCodeBlock(entryFunc: KSFunctionDeclaration) = let {
     CodeBlock.of("""
       |${if (entryFunc.hasReturnType()) "return " else ""}this.javaClass.declaredMethods.find·{
@@ -255,7 +253,6 @@ class AoplizationKSProcessor(
     )
   }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private fun testReflection(entryFunc: KSFunctionDeclaration) {
     this.javaClass.declaredMethods.find {
       it.getAnnotation(ProxyHostMethodMeta::class.java).sign == entryFunc.signature
@@ -266,7 +263,7 @@ class AoplizationKSProcessor(
     }?.also { it.isAccessible = true }?.invoke("target", "p1", "p2", "p3")
   }
 
-  @OptIn(KotlinPoetKspPreview::class, DelicateKotlinPoetApi::class)
+  @OptIn(DelicateKotlinPoetApi::class)
   private fun buildEntryStub(entryFunc: KSFunctionDeclaration,
                              name: String = entryFunc.simpleName.getShortName()) =
     FunSpec.builder(name).also { funcBuilder ->
@@ -305,7 +302,6 @@ class AoplizationKSProcessor(
       }
     }
 
-  @OptIn(KotlinPoetKspPreview::class)
   private val KSDeclarationContainer.targetClassName
     get() = when(this) {
       is KSFile -> {
