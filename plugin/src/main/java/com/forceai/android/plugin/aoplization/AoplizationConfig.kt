@@ -5,7 +5,7 @@ package com.forceai.android.plugin.aoplization
  * 通过"aoplization"扩展dsl来注入配置
  * Created by Tesla on 2020/09/30.
  */
-class AoplizationConfig {
+open class AoplizationConfig {
   /**
    * 是否调试模式，会打印一些详细日志
    */

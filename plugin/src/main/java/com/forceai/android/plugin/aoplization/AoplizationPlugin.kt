@@ -1,5 +1,6 @@
 package com.forceai.android.plugin.aoplization
 
+import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.gradle.AppExtension
 import com.android.build.gradle.BaseExtension
 import com.android.build.gradle.LibraryExtension
@@ -34,6 +35,7 @@ class AoplizationPlugin: Plugin<Project> {
   private val Version by lazy { properties.getProperty("implementation-version", "") }
   private val annotationConfig = "${Group}:compiler:${Version}"
   private val runtimeConfig = "${Group}:runtime:${Version}"
+  private val KotlinReflection = "org.jetbrains.kotlin:kotlin-reflect:1.6.21"
 
   override fun apply(project: Project) {
     println(">>>>>>>>>>>>>>>>>>>>>>register plugin Aoplization[${project.name}]<<<<<<<<<<<<<<<<<<<<<<")
@@ -51,9 +53,17 @@ class AoplizationPlugin: Plugin<Project> {
     }
 
     project.afterEvaluate {
+      require(it.isAndroid()) {
+        "Project [${it.name}] is not an android module"
+      }
+
       it.requireAndroidExt().apply {
         println("Project[${it.name}].registerTransform(${config})")
-        registerTransform(MainTransformer(it))
+        registerTransform(TransformWithJavassit(it))
+      }
+      it.requireAndroidComponentsExt().apply {
+        println("Project[${it.name}].registerTransform(${config})")
+        TransformWithASM.registerASMTransformer(this)
       }
 
       if (!it.isApplicationModule()) {
@@ -82,6 +92,7 @@ class AoplizationPlugin: Plugin<Project> {
   }
 
   private fun injectDependency(project: Project) {
+    project.addDependency("implementation", KotlinReflection)
     /*project.addDependency("implementation", runtimeConfig)
     project.addProcessor(annotationConfig)*/
   }
@@ -91,7 +102,7 @@ class AoplizationPlugin: Plugin<Project> {
    */
   private fun injectCompileOptions(project: Project) {
     val options = mapOf(
-      OPTION_DEBUG_MODE to config.debugMode.toString()
+            OPTION_DEBUG_MODE to config.debugMode.toString()
     )
     if (config.debugMode) {
       println("Project[${project.name}].injectCompileOptions--->${options}")
@@ -141,7 +152,7 @@ internal fun Task.invalidate() {
 internal fun Project.invalidateCache(vararg taskNames: String) {
   gradle.taskGraph.whenReady {
     tasks.forEach { task ->
-      if (taskNames.isNullOrEmpty()) {
+      if (taskNames.isEmpty()) {
         task.invalidate()
       } else {
         taskNames.find { it == task.name || it.toRegex().matches(task.name) }?.let {
@@ -173,6 +184,9 @@ internal fun Project.requireApplicationProject(): Project {
 }
 
 internal fun Project.requireAndroidExt(): BaseExtension {
+  require(isAndroid()) {
+    "Project [$name] is not an android module"
+  }
   return if (isApplication()) {
     project.extensions.findByType(AppExtension::class.java)
   } else {
@@ -180,11 +194,21 @@ internal fun Project.requireAndroidExt(): BaseExtension {
   } as BaseExtension
 }
 
+internal fun Project.requireAndroidComponentsExt(
+): AndroidComponentsExtension<*,*,*> {
+  require(isAndroid()) {
+    "Project [$name] is not an android module"
+  }
+  return extensions.findByType(AndroidComponentsExtension::class.java)!!
+}
+
 internal fun Project.isRootProject() = this == rootProject
 
 internal fun Project.isApplication() = this.pluginManager.hasPlugin("com.android.application")
 
 internal fun Project.isLibrary() = this.pluginManager.hasPlugin("com.android.library")
+
+internal fun Project.isAndroid() = isApplication() || isLibrary()
 
 internal fun Project.hasKaptPlugin() = this.pluginManager.hasPlugin("kotlin-kapt")
 

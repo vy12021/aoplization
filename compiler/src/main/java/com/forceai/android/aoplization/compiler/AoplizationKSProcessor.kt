@@ -124,7 +124,7 @@ class AoplizationKSProcessor(
     super.onError()
   }
 
-  @OptIn(KotlinPoetKspPreview::class, DelicateKotlinPoetApi::class)
+  @OptIn(DelicateKotlinPoetApi::class)
   private fun generateProxyAccompanyClass(
     container: KSDeclarationContainer,
     entries: List<Pair<String, KSFunctionDeclaration>>

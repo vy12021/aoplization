@@ -3,6 +3,6 @@ include ':library'
 include ':annotation'
 include ':compiler'
 include ':runtime'
-// include ':plugin'
+include ':plugin'
 
 rootProject.name = 'aoplization'

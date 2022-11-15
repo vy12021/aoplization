@@ -8,8 +8,8 @@ buildscript {
     maven { url 'https://maven.aliyun.com/repository/google' }
   }
   dependencies {
-    classpath "com.android.tools.build:gradle:${android_version}"
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlin_version}"
+    classpath "com.android.tools.build:gradle:$android_version"
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
   }
 }
 
@@ -39,6 +39,6 @@ dependencies {
   implementation "com.android.tools.build:gradle:$android_version"
   implementation "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-  implementation "org.javassist:javassist:${javassist_version}"
-  implementation "org.ow2.asm:asm-util:9.1"
+  implementation "org.javassist:javassist:$javassist_version"
+  implementation "org.ow2.asm:asm-util:$asm_util"
 }
