@@ -1,60 +1,103 @@
 // https://docs.gradle.org/current/userguide/publishing_maven.html
+// https://central.sonatype.org/publish/publish-gradle/
+// https://central.sonatype.org/publish/release/
 
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
 
+version = VERSION_NAME
+group = GROUP
+
+def configurePublication(publication) {
+
+  publication.groupId = GROUP
+  publication.artifactId = POM_ARTIFACT_ID
+  publication.version = VERSION_NAME
+
+  publication.pom {
+
+    name = POM_NAME
+    packaging = POM_PACKAGING
+    description = POM_DESCRIPTION
+    url = POM_URL
+
+    scm {
+      url = POM_SCM_URL
+      connection = POM_SCM_CONNECTION
+      developerConnection = POM_SCM_DEV_CONNECTION
+    }
+
+    licenses {
+      license {
+        name = POM_LICENCE_NAME
+        url = POM_LICENCE_URL
+        distribution = POM_LICENCE_DIST
+      }
+    }
+
+    developers {
+      developer {
+        id = POM_DEVELOPER_ID
+        name = POM_DEVELOPER_NAME
+      }
+    }
+  }
+}
+
 afterEvaluate {
 
-  // 定义原码jar包任务
+  java {
+    if (!isAndroid()) {
+      // withJavadocJar()
+      withSourcesJar()
+    }
+  }
+
   if (isAndroid()) {
     task sourceJar(type: Jar) {
       from android.sourceSets.main.java.srcDirs
       archiveClassifier = "sources"
+    }
+    task androidJavadocs(type: Javadoc) {
+      source = android.sourceSets.main.java.source
+      classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    }
+    task javadocsJar(type: Jar, dependsOn: androidJavadocs) {
+      archiveClassifier = 'javadoc'
+      from androidJavadocs.destinationDir
     }
   } else {
     task sourceJar(type: Jar, dependsOn:classes) {
       from sourceSets.main.allSource
       archiveClassifier = "sources"
     }
+    task javadocsJar(type: Jar, dependsOn:javadoc) {
+      archiveClassifier = 'javadoc'
+      from javadoc.destinationDir
+    }
   }
 
   artifacts {
     archives sourceJar
-  }
-
-  java {
-    if (!isAndroid()) {
-      withSourcesJar()
-    }
+    // archives javadocsJar
   }
 
   publishing {
     publications {
-      /*debug(MavenPublication) {
-        if (isAndroid()) {
-          from components.debug
-        } else {
-          from components.java
-        }
-        groupId = GROUP
-        artifactId = POM_ARTIFACT_ID
-        version = VERSION_NAME
-      }*/
-      release(MavenPublication) {
+      release(MavenPublication) { publication ->
         if (isAndroid()) {
           from components.release
           artifact(sourceJar)
         } else {
           from components.java
         }
-        groupId = GROUP
-        artifactId = POM_ARTIFACT_ID
-        version = VERSION_NAME
+
+        configurePublication(publication)
       }
     }
     repositories {
       maven {
-        url = mavenRepository
+        url = isSnapshotVersion() ? mavenRepositorySnapshot : mavenRepository
         credentials {
           username mavenUsername
           password mavenPassword
@@ -66,10 +109,14 @@ afterEvaluate {
     }
   }
 
-  /*signing {
-    sign publishing.publications.release
-  }*/
+  signing {
+    sign configurations.archives
+  }
 
+}
+
+def isSnapshotVersion() {
+  "$VERSION_NAME".endsWith('snapshot')
 }
 
 def isAndroid() {
